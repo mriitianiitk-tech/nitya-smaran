@@ -5,4 +5,4 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "nitya-smaran-db"
-database_id = "local-d1-id"
+database_id = "57625e59-92ac-42ae-87eb-532b04130d85"
