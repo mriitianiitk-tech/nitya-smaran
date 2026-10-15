@@ -1,0 +1,485 @@
+:root {
+    --bg-primary: #fdfbf7;
+    --bg-card: #ffffff;
+    --bg-accent: #fff5e6;
+    --text-primary: #2c1e14;
+    --text-secondary: #6e5a4f;
+    --saffron: #d96b27;
+    --saffron-light: #f4a261;
+    --gold: #c89d54;
+    --border: #ebdccb;
+    --success: #2e7d32;
+    --shadow: 0 4px 20px rgba(44, 30, 20, 0.06);
+}
+
+[data-theme="dark"] {
+    --bg-primary: #12131a;
+    --bg-card: #1c1e26;
+    --bg-accent: #272220;
+    --text-primary: #f5ebe1;
+    --text-secondary: #a89f96;
+    --saffron: #e77c3b;
+    --saffron-light: #f4a261;
+    --gold: #d4ac63;
+    --border: #2f323d;
+    --success: #66bb6a;
+    --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Devanagari", sans-serif;
+}
+
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+#root,
+.app-wrapper {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-bottom: 85px;
+    width: 100%;
+}
+
+/* Header & Always-On Naam Banner */
+header {
+    width: 100%;
+    max-width: 600px;
+    padding: 18px 20px 14px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow);
+}
+
+.deity-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--saffron);
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.mantra-subtitle {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    font-weight: 500;
+}
+
+.nudge-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: var(--bg-accent);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.2s;
+}
+
+.nudge-pill:hover {
+    border-color: var(--saffron);
+}
+
+/* Main Container */
+main {
+    width: 100%;
+    max-width: 600px;
+    padding: 20px 16px;
+    flex: 1;
+}
+
+.tab-content {
+    display: none;
+    animation: fadeIn 0.25s ease;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Cards */
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 18px;
+    box-shadow: var(--shadow);
+}
+
+.card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text-primary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    line-height: 1.4;
+}
+
+/* Verse Banner */
+.shloka-box {
+    background: var(--bg-accent);
+    border-left: 4px solid var(--saffron);
+    padding: 14px 16px;
+    border-radius: 10px;
+    margin-bottom: 18px;
+}
+
+.shloka-sanskrit {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--saffron);
+    margin-bottom: 6px;
+    line-height: 1.5;
+}
+
+.shloka-meaning {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* Inputs & Buttons */
+.input-group {
+    margin-bottom: 14px;
+}
+
+label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text-secondary);
+}
+
+input[type="text"],
+select,
+textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+input[type="text"]:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--saffron);
+}
+
+.bhava-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.bhava-chip {
+    padding: 8px 13px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.bhava-chip.selected {
+    background: var(--saffron);
+    color: #fff;
+    border-color: var(--saffron);
+    font-weight: 600;
+}
+
+.btn {
+    width: 100%;
+    padding: 13px 18px;
+    border: none;
+    border-radius: 12px;
+    background: var(--saffron);
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn-secondary {
+    background: var(--bg-accent);
+    color: var(--saffron);
+    border: 1px solid var(--saffron);
+}
+
+.btn-small {
+    width: auto;
+    padding: 8px 14px;
+    font-size: 0.82rem;
+    border-radius: 8px;
+}
+
+/* Karma Item List */
+.karma-item {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: all 0.25s;
+}
+
+.karma-item.offered {
+    opacity: 0.78;
+    border-left: 4px solid var(--success);
+}
+
+.karma-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.karma-title {
+    font-weight: 600;
+    font-size: 0.98rem;
+}
+
+.karma-bhava-tag {
+    font-size: 0.75rem;
+    padding: 3px 9px;
+    border-radius: 12px;
+    background: var(--bg-accent);
+    color: var(--saffron);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.karma-meta {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Mala Counter */
+.mala-circle-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 16px 0;
+}
+
+.mala-tap-btn {
+    width: 210px;
+    height: 210px;
+    border-radius: 50%;
+    border: 6px solid var(--saffron);
+    background: var(--bg-accent);
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    box-shadow: 0 8px 30px rgba(217, 107, 39, 0.18);
+    transition: transform 0.08s, background-color 0.2s;
+    padding: 16px;
+    text-align: center;
+}
+
+.mala-tap-btn:active {
+    transform: scale(0.95);
+}
+
+.mala-count-num {
+    font-size: 3.2rem;
+    font-weight: 700;
+    color: var(--saffron);
+    line-height: 1;
+}
+
+.mala-sub {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: 6px;
+}
+
+.stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.stat-box {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    padding: 12px;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.stat-val {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--saffron);
+}
+
+.stat-lbl {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+/* Bottom Navigation */
+nav {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    max-width: 600px;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-around;
+    padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+    z-index: 100;
+}
+
+.nav-item {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    padding: 6px 16px;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.nav-item.active {
+    color: var(--saffron);
+}
+
+.nav-icon {
+    font-size: 1.3rem;
+}
+
+/* Smaran Overlay Modal */
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(18, 19, 26, 0.92);
+    z-index: 999;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+    color: #f5ebe1;
+    animation: fadeIn 0.3s ease;
+}
+
+.overlay.show {
+    display: flex;
+}
+
+.overlay-om {
+    font-size: 4rem;
+    color: var(--saffron-light);
+    margin-bottom: 12px;
+    animation: pulse 2.5s infinite ease-in-out;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.9;
+    }
+
+    50% {
+        transform: scale(1.08);
+        opacity: 1;
+    }
+}
+
+.overlay-mantra {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 10px;
+}
+
+.overlay-prompt {
+    font-size: 1rem;
+    color: #cbbba8;
+    max-width: 360px;
+    line-height: 1.5;
+    margin-bottom: 28px;
+}

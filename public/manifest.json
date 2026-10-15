@@ -1,0 +1,9 @@
+{
+    "short_name": "Nitya Smaran",
+    "name": "Nitya Smaran — Bhava & Naam Japa",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#fdfbf7",
+    "theme_color": "#d96b27",
+    "orientation": "portrait-primary"
+}

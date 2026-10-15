@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Nitya Smaran — Constant Remembrance</title>
+  <style>
+    :root {
+      --bg-primary: #fdfbf7;
+      --bg-card: #ffffff;
+      --bg-accent: #fff5e6;
+      --text-primary: #2c1e14;
+      --text-secondary: #6e5a4f;
+      --saffron: #d96b27;
+      --saffron-light: #f4a261;
+      --gold: #c89d54;
+      --border: #ebdccb;
+      --success: #2e7d32;
+      --shadow: 0 4px 20px rgba(44, 30, 20, 0.06);
+    }
+
+    [data-theme="dark"] {
+      --bg-primary: #12131a;
+      --bg-card: #1c1e26;
+      --bg-accent: #272220;
+      --text-primary: #f5ebe1;
+      --text-secondary: #a89f96;
+      --saffron: #e77c3b;
+      --saffron-light: #f4a261;
+      --gold: #d4ac63;
+      --border: #2f323d;
+      --success: #66bb6a;
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Devanagari", sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: background-color 0.3s, color 0.3s;
+      padding-bottom: 85px;
+    }
+
+    /* Header & Always-On Naam Banner */
+    header {
+      width: 100%;
+      max-width: 600px;
+      padding: 18px 20px 14px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-card);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow);
+    }
+
+    .deity-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--saffron);
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .mantra-subtitle {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    .nudge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      padding: 4px 12px;
+      background: var(--bg-accent);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    /* Main Container */
+    main {
+      width: 100%;
+      max-width: 600px;
+      padding: 20px 16px;
+      flex: 1;
+    }
+
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.25s ease;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text-primary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-desc {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+
+    /* Verse Banner */
+    .shloka-box {
+      background: var(--bg-accent);
+      border-left: 4px solid var(--saffron);
+      padding: 14px 16px;
+      border-radius: 10px;
+      margin-bottom: 18px;
+    }
+
+    .shloka-sanskrit {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--saffron);
+      margin-bottom: 6px;
+      line-height: 1.5;
+    }
+
+    .shloka-meaning {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    /* Inputs & Buttons */
+    .input-group {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text-secondary);
+    }
+
+    input[type="text"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--saffron);
+    }
+
+    .bhava-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .bhava-chip {
+      padding: 8px 13px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--bg-primary);
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .bhava-chip.selected {
+      background: var(--saffron);
+      color: #fff;
+      border-color: var(--saffron);
+      font-weight: 600;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 13px 18px;
+      border: none;
+      border-radius: 12px;
+      background: var(--saffron);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-secondary {
+      background: var(--bg-accent);
+      color: var(--saffron);
+      border: 1px solid var(--saffron);
+    }
+
+    .btn-small {
+      width: auto;
+      padding: 8px 14px;
+      font-size: 0.82rem;
+      border-radius: 8px;
+    }
+
+    /* Karma Item List */
+    .karma-item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+      background: var(--bg-primary);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: all 0.25s;
+    }
+
+    .karma-item.offered {
+      opacity: 0.78;
+      border-left: 4px solid var(--success);
+    }
+
+    .karma-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .karma-title {
+      font-weight: 600;
+      font-size: 0.98rem;
+    }
+
+    .karma-bhava-tag {
+      font-size: 0.75rem;
+      padding: 3px 9px;
+      border-radius: 12px;
+      background: var(--bg-accent);
+      color: var(--saffron);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .karma-meta {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Mala Counter */
+    .mala-circle-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 16px 0;
+    }
+
+    .mala-tap-btn {
+      width: 210px;
+      height: 210px;
+      border-radius: 50%;
+      border: 6px solid var(--saffron);
+      background: var(--bg-accent);
+      color: var(--text-primary);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      box-shadow: 0 8px 30px rgba(217, 107, 39, 0.18);
+      transition: transform 0.08s, background-color 0.2s;
+    }
+
+    .mala-tap-btn:active {
+      transform: scale(0.95);
+    }
+
+    .mala-count-num {
+      font-size: 3.2rem;
+      font-weight: 700;
+      color: var(--saffron);
+      line-height: 1;
+    }
+
+    .mala-sub {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-top: 6px;
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .stat-box {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      padding: 12px;
+      border-radius: 12px;
+      text-align: center;
+    }
+
+    .stat-val {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--saffron);
+    }
+
+    .stat-lbl {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
+    /* Bottom Navigation */
+    nav {
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      max-width: 600px;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+      z-index: 100;
+    }
+
+    .nav-item {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      padding: 6px 16px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+
+    .nav-item.active {
+      color: var(--saffron);
+    }
+
+    .nav-icon {
+      font-size: 1.3rem;
+    }
+
+    /* Smaran Overlay Modal */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(18, 19, 26, 0.92);
+      z-index: 999;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      color: #f5ebe1;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .overlay.show {
+      display: flex;
+    }
+
+    .overlay-om {
+      font-size: 4rem;
+      color: var(--saffron-light);
+      margin-bottom: 12px;
+      animation: pulse 2.5s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.08); opacity: 1; }
+    }
+
+    .overlay-mantra {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 10px;
+    }
+
+    .overlay-prompt {
+      font-size: 1rem;
+      color: #cbbba8;
+      max-width: 360px;
+      line-height: 1.5;
+      margin-bottom: 28px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Constant Remembrance Bar -->
+  <header>
+    <div class="deity-title" id="headerDeity">🙏 श्री सीताराम (Sri Sita-Ram)</div>
+    <div class="mantra-subtitle" id="headerMantra">श्री राम जय राम जय जय राम</div>
+    <div class="nudge-pill" onclick="triggerSmaranModal()">
+      <span>🔔</span>
+      <span id="nudgeStatusText">Pause for 1-Breath Smaran</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- TAB 1: BHAVA & KARMA DEDICATOR (PRIMARY SCREEN) -->
+    <section id="tab-karma" class="tab-content active">
+      <div class="shloka-box">
+        <div class="shloka-sanskrit">यत्करोषि यदश्नासि यज्जुहोषि ददासि यत् । यत्तपस्यसि कौन्तेय तत्कुरुष्व मदर्पणम् ॥</div>
+        <div class="shloka-meaning" id="gitaVerseMeaning">
+          Whatever you do, whatever you eat, whatever you offer or give away—do that as an offering unto Me. (Gita 9.27)
+        </div>
+      </div>
+
+      <!-- New Karma Sankalpa Card -->
+      <div class="card">
+        <div class="card-title">
+          <span id="lblNewSankalpa">🌺 New Karma Sankalpa (Dedicate Action)</span>
+        </div>
+        <div class="card-desc" id="descNewSankalpa">
+          Before starting a task, meeting, inspection, or family duty, consciously anchor your Bhava in Bhagwan.
+        </div>
+
+        <div class="input-group">
+          <label id="lblTaskInput">What action are you about to begin?</label>
+          <input type="text" id="karmaInput" placeholder="e.g., Reviewing technical files, Family time, Evening walk..." />
+        </div>
+
+        <label id="lblSelectBhava">Select Inner Attitude (Bhava):</label>
+        <div class="bhava-chips" id="bhavaSelector">
+          <button type="button" class="bhava-chip selected" data-bhava="Nimitta Matra (Instrument of Bhagwan)">Nimitta Matra (Instrument)</button>
+          <button type="button" class="bhava-chip" data-bhava="Kartavya Puja (Duty as Worship)">Kartavya Puja (Worship)</button>
+          <button type="button" class="bhava-chip" data-bhava="Seva Bhava (Selfless Service)">Seva Bhava (Service)</button>
+          <button type="button" class="bhava-chip" data-bhava="Sakshi Bhava (Detached Witness)">Sakshi Bhava (Witness)</button>
+        </div>
+
+        <button class="btn" onclick="addKarma()">
+          <span>🙏</span> <span id="btnBeginKarma">Offer Sankalpa & Begin Task</span>
+        </button>
+      </div>
+
+      <!-- Active & Offered Karma List -->
+      <div class="card">
+        <div class="card-title">
+          <span id="lblTodaysYajna">🔥 Today's Karma Yajna</span>
+          <span id="karmaStatsBadge" style="font-size:0.82rem; color:var(--saffron);">0 Offered</span>
+        </div>
+        <div class="card-desc" id="descTodaysYajna">
+          When you finish a task, click "Krishnarpanam / Ramarpanam" to mentally offer both the effort and its result.
+        </div>
+        <div id="karmaListContainer"></div>
+      </div>
+    </section>
+
+    <!-- TAB 2: SMARAN & DIGITAL MALA -->
+    <section id="tab-mala" class="tab-content">
+      <div class="card">
+        <div class="card-title">
+          <span id="lblMalaTitle">📿 Nitya Naam Japa & Likhita Smaran</span>
+          <button class="btn btn-secondary btn-small" onclick="resetCurrentBead()">Reset Bead</button>
+        </div>
+        <div class="card-desc" id="descMala">
+          Tap the circle (or press Spacebar on MacBook) with each chant. Vibrates/chimes gently on completing 108 beads.
+        </div>
+
+        <div class="mala-circle-wrap">
+          <div class="mala-tap-btn" onclick="incrementJapa()">
+            <div class="mala-count-num" id="currentBeadDisplay">0</div>
+            <div class="mala-sub">/ 108 Beads</div>
+            <div class="mala-sub" id="tapMantraHint" style="color:var(--saffron); font-weight:600; margin-top:8px;">Tap to Chant</div>
+          </div>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-box">
+            <div class="stat-val" id="todayMalasDisplay">0</div>
+            <div class="stat-lbl" id="lblTodayMalas">Malas Today</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" id="totalJapaDisplay">0</div>
+            <div class="stat-lbl" id="lblTotalNaam">Total Naam Count</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span id="lblLikhitaTitle">✍️ Quick Likhita Japa / Smaran Note</span></div>
+        <div class="card-desc" id="descLikhita">Type the Divine Name or a brief gratitude prayer to anchor your mind.</div>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="likhitaInput" placeholder="Type श्री राम, राधा, or ॐ..." onkeydown="if(event.key==='Enter') submitLikhita()" />
+          <button class="btn btn-small" onclick="submitLikhita()">Offer</button>
+        </div>
+        <div id="likhitaStream" style="margin-top:12px; font-size:0.88rem; color:var(--saffron); line-height:1.6;"></div>
+      </div>
+    </section>
+
+    <!-- TAB 3: SETTINGS & CUSTOMIZATION -->
+    <section id="tab-settings" class="tab-content">
+      <div class="card">
+        <div class="card-title"><span id="lblCustomDeity">🕉️ Customize Ishta Dev & Mantra</span></div>
+        <div class="card-desc">Choose a preset or enter your own Ishta Dev / Gurudev mantra.</div>
+
+        <div class="input-group">
+          <label>Quick Preset</label>
+          <select id="presetSelect" onchange="applyPreset()">
+            <option value="custom">-- Custom (Edit Below) --</option>
+            <option value="sitaram">श्री सीताराम | श्री राम जय राम जय जय राम</option>
+            <option value="radhakrishna">श्री राधाकृष्ण | हरे कृष्ण हरे राम / श्री राधा</option>
+            <option value="shiva">भगवान शिव | ॐ नमः शिवाय</option>
+            <option value="narayana">श्री लक्ष्मी नारायण | ॐ नमो भगवते वासुदेवाय</option>
+            <option value="hanuman">श्री हनुमान जी | ॐ श्री हनुमते नमः</option>
+          </select>
+        </div>
+
+        <div class="input-group">
+          <label>Ishta Dev Name (Header Title)</label>
+          <input type="text" id="setDeityName" oninput="saveSettings()" />
+        </div>
+
+        <div class="input-group">
+          <label>Primary Mantra / Naam</label>
+          <input type="text" id="setMantra" oninput="saveSettings()" />
+        </div>
+
+        <div class="input-group">
+          <label>Dedication Phrase (Arpanam Word)</label>
+          <input type="text" id="setArpanamWord" placeholder="e.g., श्री सीतारामार्पणमस्तु / श्री कृष्णार्पणमस्तु" oninput="saveSettings()" />
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span>🌐 Language, Nudge & Appearance</span></div>
+
+        <div class="input-group" style="margin-top:12px;">
+          <label>Interface Language (भाषा)</label>
+          <select id="setLang" onchange="saveSettings()">
+            <option value="mix">Mix (English + Devanagari Bhava)</option>
+            <option value="hi">हिन्दी / संस्कृत (Pure Devanagari)</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+
+        <div class="input-group">
+          <label>Smaran Nudge Bell Interval (While App Open)</label>
+          <select id="setNudgeInterval" onchange="saveSettings()">
+            <option value="0">Off (Manual Only)</option>
+            <option value="15">Every 15 Minutes</option>
+            <option value="30">Every 30 Minutes</option>
+            <option value="60">Every 60 Minutes</option>
+          </select>
+        </div>
+
+        <div class="input-group">
+          <label>Theme (दिशा / रंग)</label>
+          <select id="setTheme" onchange="saveSettings()">
+            <option value="light">Sandalwood Light (चन्दन)</option>
+            <option value="dark">Brahma Muhurta Dark (रात्रि/ध्यान)</option>
+          </select>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:16px;">
+          <button class="btn btn-secondary btn-small" onclick="playBellSound()">🔔 Test Temple Bell</button>
+          <button class="btn btn-secondary btn-small" onclick="exportData()">📥 Export Backup</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 1-Breath Smaran Nudge Modal -->
+  <div class="overlay" id="smaranOverlay">
+    <div class="overlay-om">🕉️</div>
+    <div class="overlay-mantra" id="modalMantra">श्री राम जय राम जय जय राम</div>
+    <div class="overlay-prompt" id="modalPrompt">
+      Pause your thoughts for one deep breath. Remember Bhagwan's presence right here in the midst of your work.
+    </div>
+    <button class="btn" style="max-width:240px;" onclick="closeSmaranModal()">
+      🙏 Smaran Done (Resume)
+    </button>
+  </div>
+
+  <!-- Bottom Navigation -->
+  <nav>
+    <button class="nav-item active" onclick="switchTab('karma', this)">
+      <span class="nav-icon">🌺</span>
+      <span id="navKarma">Bhava & Karma</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('mala', this)">
+      <span class="nav-icon">📿</span>
+      <span id="navMala">Naam Japa</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('settings', this)">
+      <span class="nav-icon">⚙️</span>
+      <span id="navSettings">Settings</span>
+    </button>
+  </nav>
+
+  <script>
+    // Default App State
+    const defaultState = {
+      deityName: "🙏 श्री सीताराम (Sri Sita-Ram)",
+      mantra: "श्री राम जय राम जय जय राम",
+      arpanamWord: "श्री सीतारामार्पणमस्तु",
+      lang: "mix",
+      nudgeInterval: 30,
+      theme: "light",
+      currentBead: 0,
+      todayMalas: 0,
+      totalJapa: 0,
+      likhitaList: [],
+      karmas: []
+    };
+
+    let state = JSON.parse(localStorage.getItem("nityaSmaranState")) || defaultState;
+    let selectedBhava = "Nimitta Matra (Instrument of Bhagwan)";
+    let nudgeTimer = null;
+
+    // Language Dictionary
+    const i18n = {
+      mix: {
+        lblNewSankalpa: "🌺 New Karma Sankalpa (Dedicate Action)",
+        descNewSankalpa: "Before starting a task, meeting, or duty, consciously anchor your Bhava in Bhagwan.",
+        lblTaskInput: "What action are you about to begin?",
+        lblSelectBhava: "Select Inner Attitude (Bhava):",
+        btnBeginKarma: "Offer Sankalpa & Begin Task",
+        lblTodaysYajna: "🔥 Today's Karma Yajna",
+        descTodaysYajna: "When finished, click Arpanam to mentally offer both the effort and its result at Bhagwan's feet.",
+        lblMalaTitle: "📿 Nitya Naam Japa & Smaran",
+        lblTodayMalas: "Malas Today",
+        lblTotalNaam: "Total Naam Count",
+        navKarma: "Bhava & Karma",
+        navMala: "Naam Japa",
+        navSettings: "Settings"
+      },
+      hi: {
+        lblNewSankalpa: "🌺 नया कर्म संकल्प (भगवद्-अर्पण)",
+        descNewSankalpa: "कोई भी कार्य, बैठक या कर्तव्य प्रारम्भ करने से पूर्व अपने भाव को भगवान के चरणों में जोड़ें।",
+        lblTaskInput: "आप कौन-सा कार्य प्रारम्भ करने जा रहे हैं?",
+        lblSelectBhava: "अपना आन्तरिक भाव चुनें:",
+        btnBeginKarma: "संकल्प करें और कार्य प्रारम्भ करें",
+        lblTodaysYajna: "🔥 आज का कर्म-यज्ञ",
+        descTodaysYajna: "कार्य पूर्ण होने पर 'अर्पणम्' दबाकर परिश्रम और फल दोनों भगवान को समर्पित करें।",
+        lblMalaTitle: "📿 नित्य नाम जप एवं स्मरण",
+        lblTodayMalas: "आज की माला",
+        lblTotalNaam: "कुल नाम संख्या",
+        navKarma: "भाव एवं कर्म",
+        navMala: "नाम जप",
+        navSettings: "सेटिंग्स"
+      },
+      en: {
+        lblNewSankalpa: "🌺 New Karma Dedication",
+        descNewSankalpa: "Before starting any work or duty, consciously dedicate your intention to the Divine.",
+        lblTaskInput: "What task are you about to begin?",
+        lblSelectBhava: "Select Inner Intention:",
+        btnBeginKarma: "Dedicate & Begin Task",
+        lblTodaysYajna: "🔥 Today's Dedicated Actions",
+        descTodaysYajna: "Once complete, offer the action and its outcome back to the Divine.",
+        lblMalaTitle: "📿 Digital Japa Counter",
+        lblTodayMalas: "Malas Today",
+        lblTotalNaam: "Total Chants",
+        navKarma: "Karma Yoga",
+        navMala: "Chant Counter",
+        navSettings: "Settings"
+      }
+    };
+
+    // Web Audio API Synthesized Temple Bell
+    function playBellSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc1.type = "sine";
+        osc2.type = "triangle";
+        osc1.frequency.setValueAtTime(528, ctx.currentTime); // Solfeggio / calm bell tone
+        osc2.frequency.setValueAtTime(1056, ctx.currentTime);
+
+        gain.gain.setValueAtTime(0.25, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 2.4);
+
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc1.start();
+        osc2.start();
+        osc1.stop(ctx.currentTime + 2.4);
+        osc2.stop(ctx.currentTime + 2.4);
+      } catch (e) {}
+    }
+
+    // Initialize UI
+    function initApp() {
+      document.getElementById("setDeityName").value = state.deityName;
+      document.getElementById("setMantra").value = state.mantra;
+      document.getElementById("setArpanamWord").value = state.arpanamWord;
+      document.getElementById("setLang").value = state.lang;
+      document.getElementById("setNudgeInterval").value = state.nudgeInterval;
+      document.getElementById("setTheme").value = state.theme;
+
+      // Setup Bhava Chips
+      document.querySelectorAll(".bhava-chip").forEach(chip => {
+        chip.addEventListener("click", () => {
+          document.querySelectorAll(".bhava-chip").forEach(c => c.classList.remove("selected"));
+          chip.classList.add("selected");
+          selectedBhava = chip.getAttribute("data-bhava");
+        });
+      });
+
+      // Spacebar shortcut on MacBook for Mala
+      window.addEventListener("keydown", (e) => {
+        const malaActive = document.getElementById("tab-mala").classList.contains("active");
+        if (malaActive && e.code === "Space" && document.activeElement.tagName !== "INPUT") {
+          e.preventDefault();
+          incrementJapa();
+        }
+      });
+
+      renderAll();
+      setupNudgeTimer();
+    }
+
+    function persist() {
+      localStorage.setItem("nityaSmaranState", JSON.stringify(state));
+    }
+
+    function renderAll() {
+      // Theme
+      document.documentElement.setAttribute("data-theme", state.theme);
+
+      // Header & Modal
+      document.getElementById("headerDeity").textContent = state.deityName;
+      document.getElementById("headerMantra").textContent = state.mantra;
+      document.getElementById("modalMantra").textContent = state.mantra;
+      document.getElementById("tapMantraHint").textContent = state.mantra;
+
+      // Language Strings
+      const dict = i18n[state.lang] || i18n.mix;
+      Object.keys(dict).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = dict[id];
+      });
+
+      // Mala Display
+      document.getElementById("currentBeadDisplay").textContent = state.currentBead;
+      document.getElementById("todayMalasDisplay").textContent = state.todayMalas;
+      document.getElementById("totalJapaDisplay").textContent = state.totalJapa;
+
+      // Likhita Stream
+      const stream = document.getElementById("likhitaStream");
+      stream.innerHTML = state.likhitaList.slice(-18).map(w => `<span style="margin-right:8px;">🌺 ${w}</span>`).join("");
+
+      // Karma List
+      renderKarmas();
+    }
+
+    function renderKarmas() {
+      const container = document.getElementById("karmaListContainer");
+      const offeredCount = state.karmas.filter(k => k.offered).length;
+      document.getElementById("karmaStatsBadge").textContent = `${offeredCount} / ${state.karmas.length} Offered`;
+
+      if (state.karmas.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding:18px; color:var(--text-secondary); font-size:0.88rem;">No tasks logged yet today. Dedicate your current task above to turn work into worship.</div>`;
+        return;
+      }
+
+      container.innerHTML = state.karmas.map(item => `
+        <div class="karma-item ${item.offered ? 'offered' : ''}">
+          <div class="karma-top">
+            <div class="karma-title">${escapeHtml(item.title)}</div>
+            <span class="karma-bhava-tag">${escapeHtml(item.bhava)}</span>
+          </div>
+          <div class="karma-meta">
+            <span>🕒 Started ${item.time}</span>
+            ${
+              item.offered
+                ? `<span style="color:var(--success); font-weight:600;">✨ ${escapeHtml(state.arpanamWord)}</span>`
+                : `<button class="btn btn-secondary btn-small" onclick="offerKarma(${item.id})">🙏 Offer (${escapeHtml(state.arpanamWord)})</button>`
+            }
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function addKarma() {
+      const input = document.getElementById("karmaInput");
+      const title = input.value.trim();
+      if (!title) return;
+
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      state.karmas.unshift({
+        id: Date.now(),
+        title,
+        bhava: selectedBhava,
+        time: timeStr,
+        offered: false
+      });
+
+      input.value = "";
+      playBellSound();
+      persist();
+      renderKarmas();
+    }
+
+    function offerKarma(id) {
+      const item = state.karmas.find(k => k.id === id);
+      if (item) {
+        item.offered = true;
+        playBellSound();
+        persist();
+        renderKarmas();
+      }
+    }
+
+    function incrementJapa() {
+      state.currentBead += 1;
+      state.totalJapa += 1;
+
+      if (navigator.vibrate) navigator.vibrate(15);
+
+      if (state.currentBead >= 108) {
+        state.currentBead = 0;
+        state.todayMalas += 1;
+        if (navigator.vibrate) navigator.vibrate([100, 50, 150]);
+        playBellSound();
+      }
+
+      persist();
+      renderAll();
+    }
+
+    function resetCurrentBead() {
+      state.currentBead = 0;
+      persist();
+      renderAll();
+    }
+
+    function submitLikhita() {
+      const input = document.getElementById("likhitaInput");
+      const val = input.value.trim();
+      if (!val) return;
+      state.likhitaList.push(val);
+      state.totalJapa += 1;
+      input.value = "";
+      persist();
+      renderAll();
+    }
+
+    function applyPreset() {
+      const val = document.getElementById("presetSelect").value;
+      const presets = {
+        sitaram: {
+          deityName: "🙏 श्री सीताराम (Sri Sita-Ram)",
+          mantra: "श्री राम जय राम जय जय राम",
+          arpanamWord: "श्री सीतारामार्पणमस्तु"
+        },
+        radhakrishna: {
+          deityName: "🪈 श्री राधाकृष्ण (Sri Radha-Krishna)",
+          mantra: "श्री कृष्ण शरणं मम | श्री राधा",
+          arpanamWord: "श्री कृष्णार्पणमस्तु"
+        },
+        shiva: {
+          deityName: "🔱 भगवान श्री काशी विश्वनाथ",
+          mantra: "ॐ नमः शिवाय | हर हर महादेव",
+          arpanamWord: "श्री शिवार्पणमस्तु"
+        },
+        narayana: {
+          deityName: "🪷 श्री लक्ष्मी नारायण",
+          mantra: "ॐ नमो भगवते वासुदेवाय",
+          arpanamWord: "श्री नारायणार्पणमस्तु"
+        },
+        hanuman: {
+          deityName: "🚩 श्री हनुमान जी महाराज",
+          mantra: "ॐ श्री हनुमते नमः | जय सियाराम",
+          arpanamWord: "श्री रामचंद्र चरणार्पणमस्तु"
+        }
+      };
+
+      if (presets[val]) {
+        state.deityName = presets[val].deityName;
+        state.mantra = presets[val].mantra;
+        state.arpanamWord = presets[val].arpanamWord;
+        document.getElementById("setDeityName").value = state.deityName;
+        document.getElementById("setMantra").value = state.mantra;
+        document.getElementById("setArpanamWord").value = state.arpanamWord;
+        persist();
+        renderAll();
+      }
+    }
+
+    function saveSettings() {
+      state.deityName = document.getElementById("setDeityName").value || defaultState.deityName;
+      state.mantra = document.getElementById("setMantra").value || defaultState.mantra;
+      state.arpanamWord = document.getElementById("setArpanamWord").value || defaultState.arpanamWord;
+      state.lang = document.getElementById("setLang").value;
+      state.nudgeInterval = parseInt(document.getElementById("setNudgeInterval").value, 10);
+      state.theme = document.getElementById("setTheme").value;
+
+      persist();
+      renderAll();
+      setupNudgeTimer();
+    }
+
+    function setupNudgeTimer() {
+      if (nudgeTimer) clearInterval(nudgeTimer);
+      const mins = state.nudgeInterval;
+      const statusText = document.getElementById("nudgeStatusText");
+
+      if (mins > 0) {
+        statusText.textContent = `Smaran Bell: Every ${mins}m (Tap now)`;
+        nudgeTimer = setInterval(() => {
+          triggerSmaranModal();
+        }, mins * 60 * 1000);
+      } else {
+        statusText.textContent = `Tap for 1-Breath Smaran Pause`;
+      }
+    }
+
+    function triggerSmaranModal() {
+      playBellSound();
+      document.getElementById("smaranOverlay").classList.add("show");
+    }
+
+    function closeSmaranModal() {
+      state.totalJapa += 1;
+      persist();
+      renderAll();
+      document.getElementById("smaranOverlay").classList.remove("show");
+    }
+
+    function switchTab(tabName, btnEl) {
+      document.querySelectorAll(".tab-content").forEach(s => s.classList.remove("active"));
+      document.getElementById(`tab-${tabName}`).classList.add("active");
+      document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("active"));
+      btnEl.classList.add("active");
+    }
+
+    function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+      const a = document.createElement("a");
+      a.setAttribute("href", dataStr);
+      a.setAttribute("download", `nitya-smaran-backup-${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+
+    initApp();
+  </script>
+</body>
+</html>
