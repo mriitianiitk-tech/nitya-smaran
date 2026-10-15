@@ -1,5 +1,4 @@
-// src/App.jsx
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import "./App.css";
 
 const DEFAULT_BHAVA_OPTIONS = [
@@ -229,6 +228,16 @@ export default function App() {
     const [quizAnswerChecked, setQuizAnswerChecked] = useState(false);
     const [quizScore, setQuizScore] = useState(0);
     const [quizStreak, setQuizStreak] = useState(0);
+    // Fullscreen Minimal Focus Mode for Smartphones (Naam Japa + Sacred Names Review)
+    const [showFullscreenFocus, setShowFullscreenFocus] = useState(false);
+    const [fsSelectedCollectionId, setFsSelectedCollectionId] = useState("all");
+    const [fsNameIndex, setFsNameIndex] = useState(0);
+    const [fsShowMeaning, setFsShowMeaning] = useState(false);
+
+    // PWA Install Prompt & Standalone Mode State
+    const [deferredPrompt, setDeferredPrompt] = useState(null);
+    const [isStandalone, setIsStandalone] = useState(false);
+    const [showIOSInstallModal, setShowIOSInstallModal] = useState(false);
 
     const t = I18N[state.lang] || I18N.mix;
 
@@ -366,19 +375,48 @@ export default function App() {
         return () => clearInterval(timer);
     }, [state.nudgeInterval, playBellSound]);
 
-    // Spacebar for Mala
+    // PWA Detection and Installation Listeners
     useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (activeTab === "mala" && e.code === "Space" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) {
-                e.preventDefault();
-                incrementJapa();
-            }
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    });
+        const isStand = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+        setIsStandalone(isStand);
 
-    const incrementJapa = () => {
+        const handleBeforeInstall = (e) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+        };
+
+        const handleAppInstalled = () => {
+            setIsStandalone(true);
+            setDeferredPrompt(null);
+        };
+
+        window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+        window.addEventListener("appinstalled", handleAppInstalled);
+
+        return () => {
+            window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+            window.removeEventListener("appinstalled", handleAppInstalled);
+        };
+    }, []);
+
+    const handleInstallClick = async () => {
+        if (deferredPrompt) {
+            try {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === "accepted") {
+                    setDeferredPrompt(null);
+                    setIsStandalone(true);
+                }
+            } catch {
+                setShowIOSInstallModal(true);
+            }
+        } else {
+            setShowIOSInstallModal(true);
+        }
+    };
+
+    const incrementJapa = useCallback(() => {
         if (navigator.vibrate) navigator.vibrate(15);
         setState(prev => {
             let nextBead = prev.currentBead + 1;
@@ -396,7 +434,75 @@ export default function App() {
                 totalJapa: prev.totalJapa + 1
             };
         });
-    };
+    }, [playBellSound]);
+
+    // Active names list for Fullscreen Focus Mode in Japa
+    const fsActiveNames = useMemo(() => {
+        if (!state.sahasranamas || state.sahasranamas.length === 0) return [];
+        if (fsSelectedCollectionId === "all") {
+            return state.sahasranamas.flatMap(col =>
+                (col.names || []).map(n => ({
+                    ...n,
+                    collectionTitle: col.title,
+                    collectionDeity: col.deity
+                }))
+            );
+        }
+        const col = state.sahasranamas.find(c => c.id === fsSelectedCollectionId);
+        if (!col || !col.names) return [];
+        return col.names.map(n => ({
+            ...n,
+            collectionTitle: col.title,
+            collectionDeity: col.deity
+        }));
+    }, [state.sahasranamas, fsSelectedCollectionId]);
+
+    const fsChantAndNext = useCallback(() => {
+        incrementJapa();
+        if (fsActiveNames.length > 0) {
+            setFsNameIndex(prev => (prev + 1) % fsActiveNames.length);
+        }
+    }, [fsActiveNames.length, incrementJapa]);
+
+    const fsPrevName = useCallback(() => {
+        if (fsActiveNames.length > 0) {
+            setFsNameIndex(prev => (prev - 1 + fsActiveNames.length) % fsActiveNames.length);
+        }
+    }, [fsActiveNames.length]);
+
+    const fsNextName = useCallback(() => {
+        if (fsActiveNames.length > 0) {
+            setFsNameIndex(prev => (prev + 1) % fsActiveNames.length);
+        }
+    }, [fsActiveNames.length]);
+
+    // Spacebar & Arrow keys for Mala and Fullscreen Focus Mode
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
+
+            if (showFullscreenFocus) {
+                if (e.code === "Space") {
+                    e.preventDefault();
+                    fsChantAndNext();
+                } else if (e.code === "ArrowRight") {
+                    e.preventDefault();
+                    fsNextName();
+                } else if (e.code === "ArrowLeft") {
+                    e.preventDefault();
+                    fsPrevName();
+                } else if (e.code === "Escape") {
+                    e.preventDefault();
+                    setShowFullscreenFocus(false);
+                }
+            } else if (activeTab === "mala" && e.code === "Space") {
+                e.preventDefault();
+                incrementJapa();
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [showFullscreenFocus, fsChantAndNext, fsNextName, fsPrevName, activeTab, incrementJapa]);
 
     // Add Karma (Textbox is OPTIONAL: even if blank, entry is created)
     const addKarma = (customInputText, bhavaOverride) => {
@@ -774,6 +880,7 @@ export default function App() {
     // Extract unique deities across all sahasranamas
     const allDeities = Array.from(new Set(state.sahasranamas.map(s => s.deity).filter(Boolean)));
     const offeredCount = state.karmas.filter(k => k.offered).length;
+    const currentFsName = fsActiveNames.length > 0 ? fsActiveNames[fsNameIndex % fsActiveNames.length] : null;
 
     return (
         <div className="app-wrapper">
@@ -781,7 +888,13 @@ export default function App() {
             <header>
                 <div className="deity-title">{state.deityName}</div>
                 <div className="mantra-subtitle">{state.mantra}</div>
-                <div style={{ display: "flex", justifyContent: "center", gap: "8px", marginTop: "8px" }}>
+                <div style={{ display: "flex", justifyContent: "center", gap: "8px", marginTop: "8px", flexWrap: "wrap" }}>
+                    {!isStandalone && (
+                        <div className="install-pill" onClick={handleInstallClick} title="Install Nitya Smaran App">
+                            <span>📲</span>
+                            <span>Install App</span>
+                        </div>
+                    )}
                     <div className="nudge-pill" onClick={() => { playBellSound(); setShowModal(true); }}>
                         <span>🔔</span>
                         <span>{state.nudgeInterval > 0 ? `Bell: ${state.nudgeInterval}m` : "1-Breath Smaran"}</span>
@@ -881,6 +994,47 @@ export default function App() {
                 {/* TAB 2: MALA & LIKHITA */}
                 {activeTab === "mala" && (
                     <section className="tab-content active">
+                        {/* Minimal Fullscreen Focus Mode Launcher for Smartphone Chanting & Sacred Name Review */}
+                        <div className="card" style={{ border: "2px solid var(--saffron)", background: "linear-gradient(135deg, var(--bg-card), var(--bg-accent))" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px", flexWrap: "wrap", gap: "8px" }}>
+                                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--saffron)", display: "flex", alignItems: "center", gap: "6px" }}>
+                                    <span>📱</span>
+                                    <span>Review Names in Japa (Focus Mode)</span>
+                                </div>
+                                <button
+                                    className="btn btn-small"
+                                    style={{ padding: "6px 14px", fontSize: "0.82rem", background: "linear-gradient(135deg, var(--saffron), #e8590c)" }}
+                                    onClick={() => {
+                                        setShowFullscreenFocus(true);
+                                        setFsShowMeaning(false);
+                                    }}
+                                >
+                                    ✨ Fullscreen Focus
+                                </button>
+                            </div>
+                            <div className="card-desc" style={{ marginBottom: "8px", fontSize: "0.82rem" }}>
+                                Minimal, clear distraction-free chanting for smartphones. Chanting advances both your 108 beads and the divine names with meaning.
+                            </div>
+                            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                                <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: 0, whiteSpace: "nowrap" }}>Select Stotra/Names:</label>
+                                <select
+                                    value={fsSelectedCollectionId}
+                                    onChange={e => {
+                                        setFsSelectedCollectionId(e.target.value);
+                                        setFsNameIndex(0);
+                                    }}
+                                    style={{ flex: 1, padding: "5px 8px", fontSize: "0.82rem" }}
+                                >
+                                    <option value="all">✨ All Sahasranamas & Stotras Combined</option>
+                                    {state.sahasranamas.map(col => (
+                                        <option key={col.id} value={col.id}>
+                                            {col.title} ({col.names.length} names)
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
                         <div className="card">
                             <div className="card-title">
                                 <span>{t.lblMalaTitle}</span>
@@ -1326,6 +1480,28 @@ export default function App() {
                 {/* TAB 4: SETTINGS */}
                 {activeTab === "settings" && (
                     <section className="tab-content active">
+                        {/* PWA Install Card */}
+                        <div className="card install-card-highlight">
+                            <div className="card-title">
+                                <span>📲 Install Nitya Smaran as App (PWA)</span>
+                                <span style={{ fontSize: "0.8rem", color: isStandalone ? "var(--success)" : "var(--saffron)", fontWeight: 700 }}>
+                                    {isStandalone ? "✓ Installed" : "Installable"}
+                                </span>
+                            </div>
+                            <div className="card-desc">
+                                Install on your smartphone (iPhone / Android) or PC. Runs in full-screen standalone mode with offline support, instant launch, and haptic feedback like a native app.
+                            </div>
+                            {!isStandalone ? (
+                                <button className="btn" onClick={handleInstallClick} style={{ marginTop: "6px" }}>
+                                    📲 Install App on this Device
+                                </button>
+                            ) : (
+                                <div style={{ color: "var(--success)", fontWeight: 600, fontSize: "0.9rem", marginTop: "4px" }}>
+                                    ✓ You are currently using Nitya Smaran in installed standalone mode.
+                                </div>
+                            )}
+                        </div>
+
                         {/* Manage Bhava Categories */}
                         <div className="card">
                             <div className="card-title">
@@ -1654,6 +1830,181 @@ export default function App() {
 
                         <button className="btn" onClick={parseAndImportContent}>
                             Import Names into Sahasranama
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* FULLSCREEN MINIMAL SMARTPHONE FOCUS MODE */}
+            {showFullscreenFocus && (
+                <div className="fullscreen-focus-view">
+                    {/* Top Bar */}
+                    <div className="fs-top-bar">
+                        <button
+                            className="fs-exit-btn"
+                            onClick={() => setShowFullscreenFocus(false)}
+                            title="Exit Fullscreen Mode"
+                        >
+                            <span>✕</span>
+                            <span>Exit</span>
+                        </button>
+
+                        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                            <select
+                                value={fsSelectedCollectionId}
+                                onChange={e => {
+                                    setFsSelectedCollectionId(e.target.value);
+                                    setFsNameIndex(0);
+                                }}
+                                style={{
+                                    fontSize: "0.76rem",
+                                    padding: "4px 8px",
+                                    maxWidth: "150px",
+                                    borderRadius: "14px",
+                                    border: "1px solid var(--border)",
+                                    background: "var(--bg-accent)",
+                                    color: "var(--saffron)",
+                                    fontWeight: 600
+                                }}
+                            >
+                                <option value="all">✨ All Sahasranamas</option>
+                                {state.sahasranamas.map(col => (
+                                    <option key={col.id} value={col.id}>
+                                        {col.title}
+                                    </option>
+                                ))}
+                            </select>
+
+                            <div className="fs-badge">
+                                📿 {state.currentBead}/108
+                            </div>
+                        </div>
+
+                        <button
+                            className="fs-exit-btn"
+                            onClick={() => setFsShowMeaning(s => !s)}
+                            title="Toggle Hindi/English Meaning"
+                        >
+                            <span>{fsShowMeaning ? "👁️ Hide" : "👁️ Meaning"}</span>
+                        </button>
+                    </div>
+
+                    {/* Center Hero Name Area (Tap to chant & next) */}
+                    <div className="fs-center-hero" onClick={fsChantAndNext}>
+                        <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: "8px", fontWeight: 600 }}>
+                            {currentFsName ? currentFsName.collectionTitle : state.deityName}
+                            {fsActiveNames.length > 0 && ` • ${(fsNameIndex % fsActiveNames.length) + 1} / ${fsActiveNames.length}`}
+                        </div>
+
+                        <div className="fs-name-text">
+                            {currentFsName ? currentFsName.name : state.mantra}
+                        </div>
+
+                        {fsShowMeaning && currentFsName && (
+                            <div
+                                className="fs-meaning-box"
+                                onClick={e => e.stopPropagation()}
+                            >
+                                {currentFsName.meaningHi && (
+                                    <div style={{ fontSize: "0.98rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: "4px" }}>
+                                        {currentFsName.meaningHi}
+                                    </div>
+                                )}
+                                {currentFsName.meaningEn && (
+                                    <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontStyle: "italic" }}>
+                                        {currentFsName.meaningEn}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="fs-tap-hint">
+                            Tap name or button below to Chant (Bead +1) & advance
+                        </div>
+                    </div>
+
+                    {/* Bottom Controls */}
+                    <div className="fs-bottom-bar">
+                        <div className="fs-controls-row">
+                            <button
+                                className="fs-nav-arrow-btn"
+                                onClick={e => { e.stopPropagation(); fsPrevName(); }}
+                                title="Previous Name"
+                            >
+                                ◀
+                            </button>
+
+                            <button
+                                className="fs-chant-btn"
+                                onClick={e => { e.stopPropagation(); fsChantAndNext(); }}
+                                title="Chant & Count Bead"
+                            >
+                                <span>📿</span>
+                                <span>Chant & Next</span>
+                            </button>
+
+                            <button
+                                className="fs-nav-arrow-btn"
+                                onClick={e => { e.stopPropagation(); fsNextName(); }}
+                                title="Next Name"
+                            >
+                                ▶
+                            </button>
+                        </div>
+
+                        <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", opacity: 0.8 }}>
+                            Today: {state.todayMalas} Malas ({state.totalJapa} total chants)
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* iOS / Manual Install Guide Modal */}
+            {showIOSInstallModal && (
+                <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setShowIOSInstallModal(false)}>
+                    <div className="modal-sheet">
+                        <div className="modal-header">
+                            <div className="modal-title">📲 Install Nitya Smaran App</div>
+                            <button className="modal-close-btn" onClick={() => setShowIOSInstallModal(false)}>✕</button>
+                        </div>
+                        <div style={{ fontSize: "0.86rem", color: "var(--text-secondary)", marginBottom: "14px" }}>
+                            Install this app on your device for one-tap launch from your home screen, offline support, and distraction-free full-screen display.
+                        </div>
+
+                        <div style={{ marginBottom: "16px" }}>
+                            <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--saffron)", marginBottom: "8px" }}>
+                                On iPhone / iPad (Safari):
+                            </div>
+                            <div className="ios-step-row">
+                                <div className="ios-step-num">1</div>
+                                <div>Tap the <strong>Share</strong> button (⎋ with arrow) in Safari's bottom toolbar.</div>
+                            </div>
+                            <div className="ios-step-row">
+                                <div className="ios-step-num">2</div>
+                                <div>Scroll down and tap <strong>"Add to Home Screen"</strong> (➕).</div>
+                            </div>
+                            <div className="ios-step-row">
+                                <div className="ios-step-num">3</div>
+                                <div>Tap <strong>"Add"</strong> in top right. The Nitya Smaran app icon will be added!</div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--saffron)", marginBottom: "8px" }}>
+                                On Android / Chrome:
+                            </div>
+                            <div className="ios-step-row">
+                                <div className="ios-step-num">1</div>
+                                <div>Tap the <strong>three dots menu (⋮)</strong> in Chrome.</div>
+                            </div>
+                            <div className="ios-step-row">
+                                <div className="ios-step-num">2</div>
+                                <div>Tap <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</div>
+                            </div>
+                        </div>
+
+                        <button className="btn" style={{ marginTop: "14px" }} onClick={() => setShowIOSInstallModal(false)}>
+                            Got It
                         </button>
                     </div>
                 </div>
