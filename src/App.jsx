@@ -8,6 +8,17 @@ const DEFAULT_BHAVA_OPTIONS = [
     "Sakshi Bhava (Detached Witness)"
 ];
 
+const PRESET_DEITIES = [
+    "श्री विष्णु",
+    "श्री राम",
+    "भगवान शिव",
+    "श्री राधाकृष्ण",
+    "श्री हनुमान",
+    "माँ ललिता / दुर्गा",
+    "श्री गणेश",
+    "सूर्य देव"
+];
+
 const INITIAL_SAHASRANAMAS = [
     {
         id: "vishnu-sahasranama",
@@ -167,10 +178,10 @@ export default function App() {
         return DEFAULT_STATE;
     });
 
-    // Default tab is now the Fullscreen Nama Smaran & Japa chanter
+    // Default tab is the Fullscreen Nama Smaran & Japa chanter
     const [activeTab, setActiveTab] = useState("nama");
 
-    // Ultra-Minimal Mode Toggle (user requested switchable option)
+    // Ultra-Minimal Mode Toggle (switchable option)
     const [ultraMinimal, setUltraMinimal] = useState(() => {
         return localStorage.getItem("nityaSmaranUltraMinimal") === "true";
     });
@@ -178,8 +189,8 @@ export default function App() {
     // Fullscreen Immersive Mode toggle
     const [isImmersiveMode, setIsImmersiveMode] = useState(false);
 
-    // Fullscreen Nama Smaran State
-    const [fsSelectedCollectionId, setFsSelectedCollectionId] = useState("all");
+    // Fullscreen Nama Smaran State (supports 'all', 'deity:...', or 'col:...')
+    const [fsSelectedSource, setFsSelectedSource] = useState("all");
     const [fsNameIndex, setFsNameIndex] = useState(0);
     const [fsShowMeaning, setFsShowMeaning] = useState(false);
     const [fsRandomMode, setFsRandomMode] = useState(false);
@@ -202,10 +213,11 @@ export default function App() {
     const [librarySubTab, setLibrarySubTab] = useState("collections"); // 'collections' | 'review' | 'quiz'
     const [expandedCollectionId, setExpandedCollectionId] = useState(null);
 
-    // Add Collection Modal
+    // Add Collection Modal with existing/new Deity selection
     const [showAddCollectionModal, setShowAddCollectionModal] = useState(false);
     const [newCollectionTitle, setNewCollectionTitle] = useState("");
-    const [newCollectionDeity, setNewCollectionDeity] = useState("");
+    const [selectedDeityChoice, setSelectedDeityChoice] = useState("श्री विष्णु");
+    const [customDeityName, setCustomDeityName] = useState("");
 
     // Add Name Modal
     const [showAddNameModal, setShowAddNameModal] = useState(false);
@@ -226,8 +238,8 @@ export default function App() {
     const [reviewIndex, setReviewIndex] = useState(0);
     const [showReviewMeaning, setShowReviewMeaning] = useState(false);
 
-    // Quiz Game State
-    const [quizDeityFilter, setQuizDeityFilter] = useState("all");
+    // Quiz Game State (supports 'all', 'deity:...', or 'col:...')
+    const [quizSourceFilter, setQuizSourceFilter] = useState("all");
     const [quizQuestion, setQuizQuestion] = useState(null);
     const [quizSelectedOption, setQuizSelectedOption] = useState(null);
     const [quizAnswerChecked, setQuizAnswerChecked] = useState(false);
@@ -240,6 +252,12 @@ export default function App() {
     const [showIOSInstallModal, setShowIOSInstallModal] = useState(false);
 
     const t = I18N[state.lang] || I18N.mix;
+
+    // All available deities list (presets + custom added)
+    const allDeities = useMemo(() => {
+        const fromCollections = state.sahasranamas.map(s => s.deity).filter(Boolean);
+        return Array.from(new Set([...PRESET_DEITIES, ...fromCollections]));
+    }, [state.sahasranamas]);
 
     // Toggle Ultra-Minimal Mode
     const toggleUltraMinimal = () => {
@@ -433,10 +451,10 @@ export default function App() {
         });
     }, [playBellSound]);
 
-    // Active names list for Fullscreen Nama Smaran
+    // Active names list for Fullscreen Nama Smaran (by Deity OR by Stotra OR All)
     const fsActiveNames = useMemo(() => {
         if (!state.sahasranamas || state.sahasranamas.length === 0) return [];
-        if (fsSelectedCollectionId === "all") {
+        if (fsSelectedSource === "all") {
             return state.sahasranamas.flatMap(col =>
                 (col.names || []).map(n => ({
                     ...n,
@@ -445,14 +463,27 @@ export default function App() {
                 }))
             );
         }
-        const col = state.sahasranamas.find(c => c.id === fsSelectedCollectionId);
+        if (fsSelectedSource.startsWith("deity:")) {
+            const targetDeity = fsSelectedSource.replace("deity:", "");
+            return state.sahasranamas
+                .filter(col => col.deity === targetDeity)
+                .flatMap(col =>
+                    (col.names || []).map(n => ({
+                        ...n,
+                        collectionTitle: col.title,
+                        collectionDeity: col.deity
+                    }))
+                );
+        }
+        const colId = fsSelectedSource.startsWith("col:") ? fsSelectedSource.replace("col:", "") : fsSelectedSource;
+        const col = state.sahasranamas.find(c => c.id === colId);
         if (!col || !col.names) return [];
         return col.names.map(n => ({
             ...n,
             collectionTitle: col.title,
             collectionDeity: col.deity
         }));
-    }, [state.sahasranamas, fsSelectedCollectionId]);
+    }, [state.sahasranamas, fsSelectedSource]);
 
     const currentFsName = fsActiveNames.length > 0 ? fsActiveNames[fsNameIndex % fsActiveNames.length] : null;
 
@@ -590,13 +621,16 @@ export default function App() {
     // Sahasranama Collection Helpers
     const handleAddCollection = () => {
         const title = newCollectionTitle.trim();
-        const deity = newCollectionDeity.trim() || "भगवान";
-        if (!title) return;
+        const finalDeity = (selectedDeityChoice === "__new__" ? customDeityName.trim() : selectedDeityChoice) || "भगवान";
+        if (!title) {
+            alert("Please enter a title for the Sahasranama or Stotra.");
+            return;
+        }
 
         const newCol = {
             id: `col-${Date.now()}`,
             title,
-            deity,
+            deity: finalDeity,
             names: []
         };
 
@@ -605,7 +639,8 @@ export default function App() {
             sahasranamas: [...prev.sahasranamas, newCol]
         }));
         setNewCollectionTitle("");
-        setNewCollectionDeity("");
+        setCustomDeityName("");
+        setSelectedDeityChoice("श्री विष्णु");
         setShowAddCollectionModal(false);
     };
 
@@ -797,11 +832,18 @@ export default function App() {
         setReviewIndex(i => (i - 1 + reviewFilteredNames.length) % reviewFilteredNames.length);
     };
 
-    // MCQ Game Generator
-    const generateQuizQuestion = useCallback(() => {
+    // MCQ Game Generator (Supports 'all', 'deity:...', or 'col:...')
+    const generateQuizQuestion = useCallback((sourceOverride) => {
+        const source = sourceOverride !== undefined ? sourceOverride : quizSourceFilter;
         let pool = [];
         state.sahasranamas.forEach(col => {
-            if (quizDeityFilter === "all" || col.deity === quizDeityFilter) {
+            let matches = false;
+            if (source === "all") matches = true;
+            else if (source.startsWith("deity:") && col.deity === source.replace("deity:", "")) matches = true;
+            else if (source.startsWith("col:") && col.id === source.replace("col:", "")) matches = true;
+            else if (col.id === source || col.deity === source) matches = true;
+
+            if (matches) {
                 col.names.forEach(n => {
                     if (n.meaningHi || n.meaningEn) {
                         pool.push({
@@ -838,11 +880,12 @@ export default function App() {
             correctName: correctItem.name,
             deity: correctItem.deity,
             collectionTitle: correctItem.collectionTitle,
-            options
+            options,
+            poolCount: pool.length
         });
         setQuizSelectedOption(null);
         setQuizAnswerChecked(false);
-    }, [state.sahasranamas, quizDeityFilter]);
+    }, [state.sahasranamas, quizSourceFilter]);
 
     useEffect(() => {
         if (activeTab === "library" && librarySubTab === "quiz" && !quizQuestion) {
@@ -866,7 +909,6 @@ export default function App() {
         }
     };
 
-    const allDeities = Array.from(new Set(state.sahasranamas.map(s => s.deity).filter(Boolean)));
     const offeredCount = state.karmas.filter(k => k.offered).length;
 
     return (
@@ -875,9 +917,6 @@ export default function App() {
             <header className="app-header">
                 <div className="deity-title">
                     <span>{state.deityName}</span>
-                </div>
-                <div className="mantra-subtitle standard-only">
-                    {state.mantra}
                 </div>
 
                 <div className="header-pills-row">
@@ -897,7 +936,7 @@ export default function App() {
                     </div>
                     <div className="nudge-pill standard-only" onClick={() => { playBellSound(); setShowModal(true); }}>
                         <span>🔔</span>
-                        <span>{state.nudgeInterval > 0 ? `${state.nudgeInterval}m Bell` : "1-Breath"}</span>
+                        <span>{state.nudgeInterval > 0 ? `${state.nudgeInterval}m` : "Smaran"}</span>
                     </div>
                     <div className="nudge-pill" onClick={() => pullFromCloud(state.syncKey)}>
                         <span>{syncStatus}</span>
@@ -908,6 +947,7 @@ export default function App() {
             <main className="app-main">
                 {/* ========================================================
                     TAB 1: FULLSCREEN NAMA SMARAN & JAPA CHANTING (DEFAULT)
+                    Fits 100% into mobile viewport with ZERO vertical scrolling
                    ======================================================== */}
                 {activeTab === "nama" && (
                     <section className="tab-pane active">
@@ -916,19 +956,28 @@ export default function App() {
                             <div className="nama-top-bar">
                                 <select
                                     className="nama-collection-select"
-                                    value={fsSelectedCollectionId}
+                                    value={fsSelectedSource}
                                     onChange={e => {
-                                        setFsSelectedCollectionId(e.target.value);
+                                        setFsSelectedSource(e.target.value);
                                         setFsNameIndex(0);
                                     }}
-                                    title="Choose Sahasranama / Stotra source"
+                                    title="Choose Deity or Sahasranama source"
                                 >
-                                    <option value="all">✨ All Sahasranamas</option>
-                                    {state.sahasranamas.map(col => (
-                                        <option key={col.id} value={col.id}>
-                                            {col.title} ({col.names.length})
-                                        </option>
-                                    ))}
+                                    <option value="all">✨ All Sahasranamas (Combined)</option>
+                                    <optgroup label="🔱 Filter by Deity">
+                                        {allDeities.map(d => (
+                                            <option key={`deity:${d}`} value={`deity:${d}`}>
+                                                🔱 {d} (All Names)
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                    <optgroup label="📖 Specific Sahasranamas / Stotras">
+                                        {state.sahasranamas.map(col => (
+                                            <option key={`col:${col.id}`} value={`col:${col.id}`}>
+                                                📖 {col.title} ({col.names.length})
+                                            </option>
+                                        ))}
+                                    </optgroup>
                                 </select>
 
                                 <div className="nama-bead-badge" title="Live 108 bead counter">
@@ -1021,20 +1070,20 @@ export default function App() {
                                 <div className="sacred-sub-stats">
                                     <span>Today: <strong>{state.todayMalas}</strong> Malas</span>
                                     <span>•</span>
-                                    <span>Total: <strong>{state.totalJapa}</strong> Chants</span>
+                                    <span>Total: <strong>{state.totalJapa}</strong></span>
                                     <span>•</span>
                                     <button
-                                        style={{ background: "none", border: "none", color: "var(--saffron)", cursor: "pointer", fontSize: "0.76rem", fontWeight: 600 }}
+                                        style={{ background: "none", border: "none", color: "var(--saffron)", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600 }}
                                         onClick={() => setState(s => ({ ...s, currentBead: 0 }))}
                                     >
                                         Reset Bead
                                     </button>
                                     <span>•</span>
                                     <button
-                                        style={{ background: "none", border: "none", color: fsRandomMode ? "var(--saffron)" : "var(--text-muted)", cursor: "pointer", fontSize: "0.76rem", fontWeight: 600 }}
+                                        style={{ background: "none", border: "none", color: fsRandomMode ? "var(--saffron)" : "var(--text-muted)", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600 }}
                                         onClick={() => setFsRandomMode(r => !r)}
                                     >
-                                        {fsRandomMode ? "🔀 Random" : "➡️ Sequential"}
+                                        {fsRandomMode ? "🔀 Random" : "➡️ Seq"}
                                     </button>
                                 </div>
                             </div>
@@ -1043,10 +1092,10 @@ export default function App() {
                 )}
 
                 {/* ========================================================
-                    TAB 2: KARMA YOGA (DEDICATED ACTION & SANKALPA)
+                    TAB 2: KARMA YOGA (SCROLLABLE)
                    ======================================================== */}
                 {activeTab === "karma" && (
-                    <section className="tab-pane active">
+                    <section className="tab-pane active scrollable">
                         {/* Gita Shloka (hidden in ultra-minimal mode) */}
                         <div className="shloka-box standard-only">
                             <div className="shloka-sanskrit">
@@ -1072,7 +1121,7 @@ export default function App() {
                                 />
                             </div>
 
-                            <label style={{ marginBottom: "6px" }}>{t.lblSelectBhava}</label>
+                            <label style={{ marginBottom: "5px" }}>{t.lblSelectBhava}</label>
                             <div className="bhava-chips">
                                 {state.bhavaOptions.map(b => (
                                     <button
@@ -1095,14 +1144,14 @@ export default function App() {
                         <div className="card">
                             <div className="card-title">
                                 <span>{t.lblTodaysYajna}</span>
-                                <span style={{ fontSize: "0.82rem", color: "var(--saffron)", fontWeight: 700 }}>
+                                <span style={{ fontSize: "0.8rem", color: "var(--saffron)", fontWeight: 700 }}>
                                     {offeredCount} / {state.karmas.length} Offered
                                 </span>
                             </div>
                             <div className="card-desc standard-only">{t.descTodaysYajna}</div>
 
                             {state.karmas.length === 0 ? (
-                                <div style={{ textAlign: "center", padding: "18px", color: "var(--text-muted)", fontSize: "0.84rem" }}>
+                                <div style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "0.82rem" }}>
                                     No tasks logged today yet. Dedicate your current action above to begin.
                                 </div>
                             ) : (
@@ -1135,10 +1184,10 @@ export default function App() {
                 )}
 
                 {/* ========================================================
-                    TAB 3: SAHASRANAMA LIBRARY & REVIEW
+                    TAB 3: SAHASRANAMA LIBRARY & REVIEW (SCROLLABLE)
                    ======================================================== */}
                 {activeTab === "library" && (
-                    <section className="tab-pane active">
+                    <section className="tab-pane active scrollable">
                         {/* Subtab Switcher */}
                         <div className="subtab-bar">
                             <button
@@ -1167,7 +1216,7 @@ export default function App() {
                         {/* SUBTAB 1: COLLECTIONS LIST */}
                         {librarySubTab === "collections" && (
                             <div>
-                                <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                                <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
                                     <button
                                         className="btn btn-small"
                                         style={{ flex: 1 }}
@@ -1206,10 +1255,10 @@ export default function App() {
                                                 <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                                                     <button
                                                         className="btn btn-small"
-                                                        style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                                                        style={{ padding: "4px 8px", fontSize: "0.74rem" }}
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            setFsSelectedCollectionId(col.id);
+                                                            setFsSelectedSource(`col:${col.id}`);
                                                             setActiveTab("nama");
                                                             setFsNameIndex(0);
                                                         }}
@@ -1217,18 +1266,18 @@ export default function App() {
                                                     >
                                                         📿 Chant
                                                     </button>
-                                                    <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                                                    <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
                                                         {isExpanded ? "▲" : "▼"}
                                                     </span>
                                                 </div>
                                             </div>
 
                                             {isExpanded && (
-                                                <div style={{ marginTop: "12px", borderTop: "1px solid var(--border)", paddingTop: "10px" }}>
-                                                    <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
+                                                <div style={{ marginTop: "10px", borderTop: "1px solid var(--border)", paddingTop: "8px" }}>
+                                                    <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
                                                         <button
                                                             className="btn btn-small"
-                                                            style={{ padding: "4px 8px" }}
+                                                            style={{ padding: "3px 8px" }}
                                                             onClick={() => {
                                                                 setTargetCollectionId(col.id);
                                                                 setShowAddNameModal(true);
@@ -1238,7 +1287,7 @@ export default function App() {
                                                         </button>
                                                         <button
                                                             className="btn btn-secondary btn-small"
-                                                            style={{ padding: "4px 8px" }}
+                                                            style={{ padding: "3px 8px" }}
                                                             onClick={() => {
                                                                 setUploadTargetCollectionId(col.id);
                                                                 setShowUploadModal(true);
@@ -1256,9 +1305,9 @@ export default function App() {
                                                         </button>
                                                     </div>
 
-                                                    <div style={{ maxHeight: "240px", overflowY: "auto" }}>
+                                                    <div style={{ maxHeight: "200px", overflowY: "auto" }}>
                                                         {col.names.length === 0 ? (
-                                                            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", textAlign: "center", padding: "10px" }}>
+                                                            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", textAlign: "center", padding: "8px" }}>
                                                                 No names added yet. Click 'Add Name' or 'Import' above.
                                                             </div>
                                                         ) : (
@@ -1269,9 +1318,9 @@ export default function App() {
                                                                         display: "flex",
                                                                         justifyContent: "space-between",
                                                                         alignItems: "center",
-                                                                        padding: "6px 8px",
+                                                                        padding: "5px 6px",
                                                                         borderBottom: "1px solid var(--border-light)",
-                                                                        fontSize: "0.82rem"
+                                                                        fontSize: "0.8rem"
                                                                     }}
                                                                 >
                                                                     <div>
@@ -1299,23 +1348,23 @@ export default function App() {
                         {/* SUBTAB 2: FLASHCARD REVIEW */}
                         {librarySubTab === "review" && (
                             <div className="card">
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "6px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "6px" }}>
                                     <div className="card-title" style={{ margin: 0 }}>🎴 Flashcard Review</div>
                                     <div style={{ display: "flex", gap: "6px" }}>
                                         <select
                                             value={reviewDeityFilter}
                                             onChange={e => { setReviewDeityFilter(e.target.value); setReviewIndex(0); }}
-                                            style={{ padding: "4px 8px", fontSize: "0.78rem" }}
+                                            style={{ padding: "4px 6px", fontSize: "0.76rem" }}
                                         >
                                             <option value="all">All Deities</option>
                                             {allDeities.map(d => (
-                                                <option key={d} value={d}>{d}</option>
+                                                <option key={d} value={d}>🔱 {d}</option>
                                             ))}
                                         </select>
                                         <select
                                             value={reviewMode}
                                             onChange={e => { setReviewMode(e.target.value); setReviewIndex(0); }}
-                                            style={{ padding: "4px 8px", fontSize: "0.78rem" }}
+                                            style={{ padding: "4px 6px", fontSize: "0.76rem" }}
                                         >
                                             <option value="sequential">Sequential</option>
                                             <option value="random">Random</option>
@@ -1328,7 +1377,7 @@ export default function App() {
                                         <div
                                             className="sacred-chant-canvas"
                                             onClick={() => setShowReviewMeaning(s => !s)}
-                                            style={{ minHeight: "220px", marginBottom: "12px" }}
+                                            style={{ minHeight: "200px", marginBottom: "10px" }}
                                         >
                                             <div className="sacred-meta-row">
                                                 <span>{currentReviewItem.collectionTitle}</span>
@@ -1363,27 +1412,59 @@ export default function App() {
                                         </div>
                                     </div>
                                 ) : (
-                                    <div style={{ textAlign: "center", padding: "20px", color: "var(--text-muted)" }}>
+                                    <div style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)" }}>
                                         No names found for the selected filter.
                                     </div>
                                 )}
                             </div>
                         )}
 
-                        {/* SUBTAB 3: MCQ REMINDER GAME */}
+                        {/* SUBTAB 3: MCQ REMINDER GAME WITH SOURCE SELECTOR */}
                         {librarySubTab === "quiz" && (
                             <div className="quiz-card">
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                                     <div>
                                         <div className="card-title" style={{ margin: 0 }}>🎮 Nama Reminder Game</div>
-                                        <div style={{ fontSize: "0.76rem", color: "var(--text-muted)" }}>
-                                            Read the attribute & identify Bhagwan's Name
+                                        <div style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>
+                                            Identify Bhagwan's Name from the Divine Meaning
                                         </div>
                                     </div>
-                                    <div style={{ display: "flex", gap: "6px" }}>
+                                    <div style={{ display: "flex", gap: "5px" }}>
                                         <div className="score-badge">⭐ {quizScore}</div>
                                         <div className="score-badge">🔥 {quizStreak}</div>
                                     </div>
+                                </div>
+
+                                {/* DEITY / STOTRA CHOOSER FOR QUIZ */}
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", margin: "10px 0 12px", background: "var(--bg-accent)", padding: "6px 10px", borderRadius: "var(--radius-sm)" }}>
+                                    <label style={{ margin: 0, fontSize: "0.76rem", fontWeight: 700, color: "var(--saffron)", whiteSpace: "nowrap" }}>
+                                        🎯 Play From:
+                                    </label>
+                                    <select
+                                        value={quizSourceFilter}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setQuizSourceFilter(val);
+                                            generateQuizQuestion(val);
+                                        }}
+                                        style={{ flex: 1, padding: "4px 8px", fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}
+                                    >
+                                        <option value="all">✨ All Sahasranamas & Deities</option>
+                                        <optgroup label="🔱 Filter by Deity">
+                                            {allDeities.map(d => (
+                                                <option key={`deity:${d}`} value={`deity:${d}`}>
+                                                    🔱 {d} (All stotras)
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                        <optgroup label="📖 Specific Sahasranama / Stotra">
+                                            {state.sahasranamas.map(col => (
+                                                <option key={`col:${col.id}`} value={`col:${col.id}`}>
+                                                    📖 {col.title} ({col.names.length} names)
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    </select>
                                 </div>
 
                                 {quizQuestion ? (
@@ -1392,18 +1473,18 @@ export default function App() {
                                             background: "var(--bg-accent-soft)",
                                             border: "1px solid var(--border)",
                                             borderRadius: "var(--radius-sm)",
-                                            padding: "16px",
-                                            marginBottom: "14px",
+                                            padding: "12px",
+                                            marginBottom: "12px",
                                             textAlign: "center"
                                         }}>
-                                            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginBottom: "4px" }}>
-                                                {quizQuestion.collectionTitle}
+                                            <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginBottom: "3px" }}>
+                                                {quizQuestion.collectionTitle} ({quizQuestion.deity})
                                             </div>
-                                            <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.4 }}>
+                                            <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.35 }}>
                                                 "{quizQuestion.meaning}"
                                             </div>
                                             {quizQuestion.meaningSecondary && (
-                                                <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", fontStyle: "italic", marginTop: "4px" }}>
+                                                <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", fontStyle: "italic", marginTop: "3px" }}>
                                                     ({quizQuestion.meaningSecondary})
                                                 </div>
                                             )}
@@ -1429,7 +1510,7 @@ export default function App() {
                                         </div>
 
                                         {quizAnswerChecked && (
-                                            <div style={{ textAlign: "center", marginTop: "12px" }}>
+                                            <div style={{ textAlign: "center", marginTop: "10px" }}>
                                                 <button className="btn" onClick={() => generateQuizQuestion()}>
                                                     Next Question ▶
                                                 </button>
@@ -1437,8 +1518,8 @@ export default function App() {
                                         )}
                                     </div>
                                 ) : (
-                                    <div style={{ textAlign: "center", padding: "20px", color: "var(--text-muted)" }}>
-                                        Not enough names with meanings to generate a quiz. Add more names in the library!
+                                    <div style={{ textAlign: "center", padding: "18px", color: "var(--text-muted)", fontSize: "0.82rem" }}>
+                                        Not enough names with meanings found for this filter. Please choose another Deity/Stotram or add more names!
                                     </div>
                                 )}
                             </div>
@@ -1447,10 +1528,10 @@ export default function App() {
                 )}
 
                 {/* ========================================================
-                    TAB 4: SETTINGS & CUSTOMIZATION
+                    TAB 4: SETTINGS & CUSTOMIZATION (SCROLLABLE)
                    ======================================================== */}
                 {activeTab === "settings" && (
-                    <section className="tab-pane active">
+                    <section className="tab-pane active scrollable">
                         {/* Ultra-Minimal Mode Option */}
                         <div className="card">
                             <div className="card-title">
@@ -1459,7 +1540,7 @@ export default function App() {
                                     type="checkbox"
                                     checked={ultraMinimal}
                                     onChange={toggleUltraMinimal}
-                                    style={{ width: "20px", height: "20px", accentColor: "var(--saffron)", cursor: "pointer" }}
+                                    style={{ width: "18px", height: "18px", accentColor: "var(--saffron)", cursor: "pointer" }}
                                 />
                             </div>
                             <div className="card-desc">
@@ -1471,7 +1552,7 @@ export default function App() {
                         <div className="card install-card-highlight">
                             <div className="card-title">
                                 <span>📲 Install Nitya Smaran as App (PWA)</span>
-                                <span style={{ fontSize: "0.78rem", color: isStandalone ? "var(--success)" : "var(--saffron)", fontWeight: 700 }}>
+                                <span style={{ fontSize: "0.76rem", color: isStandalone ? "var(--success)" : "var(--saffron)", fontWeight: 700 }}>
                                     {isStandalone ? "✓ Installed" : "Installable"}
                                 </span>
                             </div>
@@ -1483,7 +1564,7 @@ export default function App() {
                                     📲 Install App on this Device
                                 </button>
                             ) : (
-                                <div style={{ color: "var(--success)", fontWeight: 600, fontSize: "0.85rem" }}>
+                                <div style={{ color: "var(--success)", fontWeight: 600, fontSize: "0.82rem" }}>
                                     ✓ You are currently running Nitya Smaran in installed standalone mode.
                                 </div>
                             )}
@@ -1494,7 +1575,7 @@ export default function App() {
                             <div className="card-title">🙏 Deity & Mantra Preset</div>
                             <div className="card-desc standard-only">Select your Ishta Devata to customize the divine focus.</div>
 
-                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
+                            <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginBottom: "10px" }}>
                                 {Object.entries(PRESETS).map(([key, p]) => (
                                     <button
                                         key={key}
@@ -1543,16 +1624,16 @@ export default function App() {
                                 Customize the attitudes you anchor before starting an action. Add, edit, or remove your personal Bhavas.
                             </div>
 
-                            <div style={{ marginBottom: "12px" }}>
+                            <div style={{ marginBottom: "10px" }}>
                                 {state.bhavaOptions.map((bhava, index) => (
                                     <div key={index} className="category-manage-item">
                                         {editingBhavaIndex === index ? (
-                                            <div style={{ display: "flex", gap: "6px", width: "100%" }}>
+                                            <div style={{ display: "flex", gap: "5px", width: "100%" }}>
                                                 <input
                                                     type="text"
                                                     value={editingBhavaValue}
                                                     onChange={e => setEditingBhavaValue(e.target.value)}
-                                                    style={{ flex: 1, padding: "5px 8px" }}
+                                                    style={{ flex: 1, padding: "4px 6px" }}
                                                 />
                                                 <button className="btn btn-small" onClick={handleSaveEditBhavaCategory}>Save</button>
                                                 <button className="btn btn-secondary btn-small" onClick={() => setEditingBhavaIndex(null)}>Cancel</button>
@@ -1582,7 +1663,7 @@ export default function App() {
                                 ))}
                             </div>
 
-                            <div style={{ display: "flex", gap: "6px" }}>
+                            <div style={{ display: "flex", gap: "5px" }}>
                                 <input
                                     type="text"
                                     value={newBhavaCategory}
@@ -1639,7 +1720,7 @@ export default function App() {
             </main>
 
             {/* ========================================================
-                FLOATING GLASSMORPHIC BOTTOM DOCK
+                COMPACT BOTTOM NAVIGATION DOCK (ZERO BOTTOM VOID)
                ======================================================== */}
             <nav className="bottom-dock">
                 <button
@@ -1673,10 +1754,10 @@ export default function App() {
             </nav>
 
             {/* ========================================================
-                MODALS: ADD COLLECTION, ADD NAME, UPLOAD, PWA GUIDE
+                MODALS: ADD COLLECTION (WITH DEITY DROPDOWN), ADD NAME, UPLOAD
                ======================================================== */}
 
-            {/* Modal: Add Collection */}
+            {/* Modal: Add Collection with Deity Dropdown & Add New Option */}
             {showAddCollectionModal && (
                 <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setShowAddCollectionModal(false)}>
                     <div className="modal-dialog">
@@ -1694,13 +1775,27 @@ export default function App() {
                             />
                         </div>
                         <div className="input-group">
-                            <label>Deity Name:</label>
-                            <input
-                                type="text"
-                                value={newCollectionDeity}
-                                onChange={e => setNewCollectionDeity(e.target.value)}
-                                placeholder="e.g., माँ ललिता त्रिपुरसुन्दरी"
-                            />
+                            <label>Deity (Select existing or add new):</label>
+                            <select
+                                value={selectedDeityChoice}
+                                onChange={e => setSelectedDeityChoice(e.target.value)}
+                                style={{ marginBottom: selectedDeityChoice === "__new__" ? "6px" : "0" }}
+                            >
+                                {allDeities.map(d => (
+                                    <option key={d} value={d}>🔱 {d}</option>
+                                ))}
+                                <option value="__new__">➕ Add New Deity...</option>
+                            </select>
+
+                            {selectedDeityChoice === "__new__" && (
+                                <input
+                                    type="text"
+                                    value={customDeityName}
+                                    onChange={e => setCustomDeityName(e.target.value)}
+                                    placeholder="Type new Deity name (e.g., सूर्य देव, दत्तात्रेय)"
+                                    autoFocus
+                                />
+                            )}
                         </div>
                         <button className="btn" onClick={handleAddCollection}>
                             Create Sahasranama
@@ -1807,12 +1902,12 @@ export default function App() {
                             <div className="modal-title">📲 Install Nitya Smaran App</div>
                             <button className="modal-close-btn" onClick={() => setShowIOSInstallModal(false)}>✕</button>
                         </div>
-                        <div style={{ fontSize: "0.84rem", color: "var(--text-secondary)", marginBottom: "14px", lineHeight: "1.4" }}>
+                        <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginBottom: "12px", lineHeight: "1.4" }}>
                             Install this app on your device for one-tap launch from your home screen, offline support, and distraction-free full-screen display.
                         </div>
 
-                        <div style={{ marginBottom: "14px" }}>
-                            <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "var(--saffron)", marginBottom: "8px" }}>
+                        <div style={{ marginBottom: "12px" }}>
+                            <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--saffron)", marginBottom: "6px" }}>
                                 On iPhone / iPad (Safari):
                             </div>
                             <div className="ios-step-row">
@@ -1830,7 +1925,7 @@ export default function App() {
                         </div>
 
                         <div>
-                            <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "var(--saffron)", marginBottom: "8px" }}>
+                            <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--saffron)", marginBottom: "6px" }}>
                                 On Android / Chrome:
                             </div>
                             <div className="ios-step-row">
@@ -1843,7 +1938,7 @@ export default function App() {
                             </div>
                         </div>
 
-                        <button className="btn" style={{ marginTop: "14px" }} onClick={() => setShowIOSInstallModal(false)}>
+                        <button className="btn" style={{ marginTop: "12px" }} onClick={() => setShowIOSInstallModal(false)}>
                             Got It
                         </button>
                     </div>
@@ -1860,7 +1955,7 @@ export default function App() {
                     </div>
                     <button
                         className="btn"
-                        style={{ maxWidth: "240px" }}
+                        style={{ maxWidth: "220px" }}
                         onClick={() => {
                             setState(prev => ({ ...prev, totalJapa: prev.totalJapa + 1 }));
                             setShowModal(false);

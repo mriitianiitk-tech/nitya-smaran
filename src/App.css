@@ -1,6 +1,7 @@
 /* ==========================================================================
    NITYA SMARAN (नित्य स्मरण) — SACRED ASHRAM DESIGN SYSTEM
-   Ultra-Clean, Minimal, Smartphone-Optimized Fullscreen Chanting & Karma Yoga
+   Compact, Smartphone-Optimized Fullscreen Chanting & Karma Yoga
+   Zero Unnecessary Scrolling • Native App Feel
    ========================================================================== */
 
 :root {
@@ -22,13 +23,13 @@
     --success: #2e7d32;
     --danger: #d32f2f;
     --shadow-sm: 0 2px 6px rgba(43, 34, 26, 0.04);
-    --shadow: 0 4px 18px rgba(43, 34, 26, 0.07);
-    --shadow-lg: 0 10px 30px rgba(43, 34, 26, 0.12);
+    --shadow: 0 4px 16px rgba(43, 34, 26, 0.07);
+    --shadow-lg: 0 8px 24px rgba(43, 34, 26, 0.12);
     --radius-sm: 8px;
-    --radius-md: 14px;
-    --radius-lg: 20px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
     --radius-full: 9999px;
-    --dock-height: 64px;
+    --dock-height: 54px;
 }
 
 [data-theme="dark"] {
@@ -50,8 +51,8 @@
     --success: #66bb6a;
     --danger: #ef5350;
     --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.25);
-    --shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
-    --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.65);
+    --shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.65);
 }
 
 /* Reset & Global */
@@ -65,11 +66,11 @@
 
 html, body {
     width: 100%;
-    min-height: 100vh;
-    min-height: 100dvh;
+    height: 100%;
+    height: 100dvh;
     background-color: var(--bg-primary);
     color: var(--text-primary);
-    overflow-x: hidden;
+    overflow: hidden; /* Lock viewport to eliminate unnecessary body scrolling */
     -webkit-font-smoothing: antialiased;
     transition: background-color 0.25s, color 0.25s;
 }
@@ -77,18 +78,14 @@ html, body {
 #root,
 .app-wrapper {
     width: 100%;
-    min-height: 100vh;
-    min-height: 100dvh;
+    height: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
     display: flex;
     flex-direction: column;
     align-items: center;
     position: relative;
-    padding-bottom: calc(var(--dock-height) + env(safe-area-inset-bottom) + 8px);
-}
-
-/* When in pure immersive fullscreen mode on nama tab */
-.app-wrapper.immersive-mode {
-    padding-bottom: 0 !important;
+    overflow: hidden;
 }
 
 /* ==========================================================================
@@ -101,62 +98,50 @@ html, body {
 .ultra-minimal .card {
     border-color: var(--border-light);
     box-shadow: none;
-    padding: 12px 14px;
+    padding: 10px 12px;
 }
 
-.ultra-minimal header {
-    padding: 8px 14px 6px;
-    border-bottom: 1px solid var(--border-light);
+.ultra-minimal header.app-header {
+    padding: 6px 12px 4px;
 }
 
 .ultra-minimal .deity-title {
-    font-size: 1.15rem;
-}
-
-.ultra-minimal .mantra-subtitle {
-    display: none;
+    font-size: 1.05rem;
 }
 
 /* ==========================================================================
-   APP HEADER
+   APP HEADER (COMPACT & SLEEK)
    ========================================================================== */
 header.app-header {
     width: 100%;
     max-width: 600px;
-    padding: 12px 16px 10px;
+    padding: 7px 12px 5px;
     text-align: center;
     background: var(--bg-card);
     border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
+    flex-shrink: 0;
     z-index: 90;
     box-shadow: var(--shadow-sm);
     transition: all 0.2s ease;
 }
 
 .deity-title {
-    font-size: 1.35rem;
+    font-size: 1.18rem;
     font-weight: 700;
     color: var(--saffron);
     letter-spacing: 0.3px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-}
-
-.mantra-subtitle {
-    font-size: 0.88rem;
-    color: var(--text-secondary);
-    margin-top: 3px;
-    font-weight: 500;
+    gap: 6px;
+    line-height: 1.25;
 }
 
 .header-pills-row {
     display: flex;
     justify-content: center;
-    gap: 6px;
-    margin-top: 8px;
+    gap: 5px;
+    margin-top: 4px;
     flex-wrap: wrap;
     align-items: center;
 }
@@ -164,12 +149,12 @@ header.app-header {
 .nudge-pill {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 4px 10px;
+    gap: 4px;
+    padding: 3px 9px;
     background: var(--bg-accent);
     border: 1px solid var(--border);
     border-radius: var(--radius-full);
-    font-size: 0.74rem;
+    font-size: 0.72rem;
     font-weight: 600;
     color: var(--text-secondary);
     cursor: pointer;
@@ -191,17 +176,17 @@ header.app-header {
 .install-pill {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 4px 11px;
+    gap: 4px;
+    padding: 3px 9px;
     background: linear-gradient(135deg, var(--saffron), #cb5f1d);
     color: #ffffff;
     border: 1px solid var(--gold);
     border-radius: var(--radius-full);
-    font-size: 0.74rem;
+    font-size: 0.72rem;
     font-weight: 700;
     cursor: pointer;
     user-select: none;
-    box-shadow: 0 2px 8px var(--saffron-glow);
+    box-shadow: 0 2px 6px var(--saffron-glow);
     animation: gentlePulse 3s infinite ease-in-out;
 }
 
@@ -216,53 +201,52 @@ header.app-header {
 main.app-main {
     width: 100%;
     max-width: 600px;
-    padding: 10px 14px;
+    padding: 6px 10px;
     flex: 1;
+    min-height: 0; /* CRITICAL for flex children to size without overflowing */
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .tab-pane {
     display: none;
-    animation: fadeSlideUp 0.2s ease forwards;
     width: 100%;
+    height: 100%;
+    min-height: 0;
 }
 
 .tab-pane.active {
     display: flex;
     flex-direction: column;
     flex: 1;
+    min-height: 0;
 }
 
-@keyframes fadeSlideUp {
-    from {
-        opacity: 0;
-        transform: translateY(4px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+/* Scrollable tabs (Karma, Library, Settings) */
+.tab-pane.scrollable {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(var(--dock-height) + env(safe-area-inset-bottom) + 16px);
 }
 
 /* ==========================================================================
-   TAB 1: FULLSCREEN NAMA SMARAN & JAPA CHANTING (DEFAULT)
+   TAB 1: FULLSCREEN NAMA SMARAN & JAPA CHANTING (ZERO VERTICAL SCROLL)
    ========================================================================== */
 .fullscreen-nama-view {
     width: 100%;
-    flex: 1;
+    height: 100%;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    min-height: calc(100dvh - 140px);
-    position: relative;
+    overflow: hidden;
     user-select: none;
-    padding: 4px 0 8px;
+    padding: 0 0 calc(var(--dock-height) + env(safe-area-inset-bottom) + 6px);
 }
 
 .app-wrapper.immersive-mode .fullscreen-nama-view {
-    min-height: 100dvh;
-    padding: max(12px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom));
+    padding: max(8px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
 }
 
 /* Top Floating Controls in Nama View */
@@ -270,21 +254,22 @@ main.app-main {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     width: 100%;
-    padding: 6px 10px;
+    padding: 5px 8px;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
-    margin-bottom: 8px;
+    margin-bottom: 6px;
+    flex-shrink: 0;
 }
 
 .nama-collection-select {
     flex: 1;
     max-width: 220px;
-    padding: 5px 8px;
-    font-size: 0.78rem;
+    padding: 4px 6px;
+    font-size: 0.76rem;
     font-weight: 600;
     color: var(--saffron);
     background: var(--bg-accent);
@@ -295,12 +280,12 @@ main.app-main {
 }
 
 .nama-bead-badge {
-    font-size: 0.76rem;
+    font-size: 0.74rem;
     font-weight: 700;
     color: var(--text-primary);
     background: var(--bg-accent-soft);
     border: 1px solid var(--border);
-    padding: 4px 10px;
+    padding: 3px 8px;
     border-radius: var(--radius-full);
     display: flex;
     align-items: center;
@@ -312,14 +297,14 @@ main.app-main {
     background: var(--bg-accent-soft);
     border: 1px solid var(--border);
     border-radius: var(--radius-full);
-    padding: 5px 10px;
-    font-size: 0.76rem;
+    padding: 4px 8px;
+    font-size: 0.74rem;
     font-weight: 600;
     color: var(--text-secondary);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     transition: all 0.15s ease;
 }
 
@@ -328,86 +313,85 @@ main.app-main {
     border-color: var(--saffron);
 }
 
-/* Tap-Anywhere Sacred Canvas */
+/* Tap-Anywhere Sacred Canvas: auto stretches to exact available screen */
 .sacred-chant-canvas {
     flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding: 20px 12px;
-    border-radius: var(--radius-lg);
+    padding: 10px 8px;
+    border-radius: var(--radius-md);
     background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-accent-soft) 100%);
     border: 1px solid var(--border);
-    box-shadow: var(--shadow);
+    box-shadow: var(--shadow-sm);
     cursor: pointer;
     position: relative;
-    transition: transform 0.08s ease, box-shadow 0.15s ease;
-    margin-bottom: 12px;
-    min-height: 280px;
+    transition: transform 0.08s ease;
+    margin-bottom: 6px;
+    overflow-y: auto;
 }
 
 .sacred-chant-canvas:active {
     transform: scale(0.985);
-    box-shadow: 0 2px 10px var(--saffron-glow);
 }
 
 .sacred-meta-row {
-    font-size: 0.78rem;
+    font-size: 0.74rem;
     font-weight: 600;
     color: var(--text-muted);
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
     text-transform: uppercase;
-    margin-bottom: 14px;
+    margin-bottom: 8px;
     display: flex;
     align-items: center;
     gap: 6px;
 }
 
 .sacred-name-text {
-    font-size: clamp(2.4rem, 11vw, 4.2rem);
+    font-size: clamp(2.1rem, 9.5vw, 3.8rem);
     font-weight: 700;
     color: var(--saffron);
     line-height: 1.25;
     letter-spacing: 0.5px;
-    text-shadow: 0 4px 22px var(--saffron-glow);
-    margin-bottom: 12px;
+    text-shadow: 0 4px 18px var(--saffron-glow);
+    margin-bottom: 8px;
     transition: transform 0.12s ease;
 }
 
 .sacred-meaning-box {
     width: 100%;
-    max-width: 440px;
-    padding: 12px 16px;
+    max-width: 420px;
+    padding: 8px 12px;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     box-shadow: var(--shadow-sm);
-    margin-top: 10px;
-    animation: fadeSlideUp 0.15s ease;
+    margin-top: 6px;
     text-align: center;
 }
 
 .sacred-meaning-hi {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 600;
     color: var(--text-primary);
-    line-height: 1.45;
-    margin-bottom: 4px;
+    line-height: 1.4;
+    margin-bottom: 2px;
 }
 
 .sacred-meaning-en {
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     color: var(--text-secondary);
     font-style: italic;
-    line-height: 1.4;
+    line-height: 1.35;
 }
 
 .sacred-tap-prompt {
-    font-size: 0.76rem;
+    font-size: 0.72rem;
     color: var(--text-muted);
-    margin-top: 14px;
+    margin-top: 8px;
     opacity: 0.85;
 }
 
@@ -416,51 +400,51 @@ main.app-main {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     width: 100%;
+    flex-shrink: 0;
 }
 
 .sacred-controls-row {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 10px;
     width: 100%;
 }
 
 .btn-chant-primary {
     flex: 1;
-    max-width: 250px;
-    padding: 13px 20px;
+    max-width: 240px;
+    padding: 11px 18px;
     border-radius: var(--radius-full);
     background: linear-gradient(135deg, var(--saffron), #cb5f1d);
     color: #ffffff;
-    font-size: 1.02rem;
+    font-size: 0.98rem;
     font-weight: 700;
     border: 2px solid var(--gold);
     cursor: pointer;
-    box-shadow: 0 5px 18px var(--saffron-glow);
+    box-shadow: 0 4px 14px var(--saffron-glow);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     user-select: none;
-    transition: transform 0.08s ease, filter 0.15s ease;
+    transition: transform 0.08s ease;
 }
 
 .btn-chant-primary:active {
     transform: scale(0.95);
-    filter: brightness(1.05);
 }
 
 .btn-nav-circle {
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     border-radius: var(--radius-full);
     background: var(--bg-card);
     border: 1px solid var(--border);
     color: var(--text-primary);
-    font-size: 1.1rem;
+    font-size: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -476,29 +460,29 @@ main.app-main {
 .sacred-sub-stats {
     display: flex;
     justify-content: center;
-    gap: 14px;
-    font-size: 0.76rem;
+    gap: 10px;
+    font-size: 0.72rem;
     color: var(--text-muted);
 }
 
 /* ==========================================================================
-   CARDS & COMMON UI
+   CARDS & COMMON UI (COMPACT)
    ========================================================================== */
 .card {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    padding: 16px;
-    margin-bottom: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
     box-shadow: var(--shadow-sm);
     transition: all 0.2s ease;
 }
 
 .card-title {
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 700;
     color: var(--text-primary);
-    margin-bottom: 6px;
+    margin-bottom: 5px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -507,50 +491,50 @@ main.app-main {
 }
 
 .card-desc {
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     color: var(--text-secondary);
-    line-height: 1.45;
-    margin-bottom: 12px;
+    line-height: 1.4;
+    margin-bottom: 10px;
 }
 
 /* Shloka Quote Box */
 .shloka-box {
     background: linear-gradient(135deg, var(--bg-card), var(--bg-accent));
-    border-left: 4px solid var(--saffron);
-    border-radius: 0 var(--radius-md) var(--radius-md) 0;
-    padding: 12px 14px;
-    margin-bottom: 12px;
+    border-left: 3px solid var(--saffron);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    padding: 8px 12px;
+    margin-bottom: 10px;
     border-top: 1px solid var(--border);
     border-right: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
 }
 
 .shloka-sanskrit {
-    font-size: 0.96rem;
+    font-size: 0.88rem;
     font-weight: 600;
     color: var(--saffron);
-    line-height: 1.5;
-    margin-bottom: 4px;
+    line-height: 1.45;
+    margin-bottom: 3px;
 }
 
 .shloka-meaning {
-    font-size: 0.8rem;
+    font-size: 0.76rem;
     color: var(--text-secondary);
     font-style: italic;
-    line-height: 1.4;
+    line-height: 1.35;
 }
 
 /* Form Controls */
 .input-group {
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 
 label {
     display: block;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 600;
     color: var(--text-secondary);
-    margin-bottom: 5px;
+    margin-bottom: 4px;
 }
 
 input[type="text"],
@@ -559,38 +543,37 @@ input[type="file"],
 select,
 textarea {
     width: 100%;
-    padding: 9px 12px;
+    padding: 7px 10px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--bg-card);
     color: var(--text-primary);
-    font-size: 0.88rem;
+    font-size: 0.85rem;
     outline: none;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    transition: border-color 0.15s ease;
 }
 
 input:focus,
 select:focus,
 textarea:focus {
     border-color: var(--saffron);
-    box-shadow: 0 0 0 2px var(--saffron-glow);
 }
 
 /* Bhava Chips */
 .bhava-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 12px;
+    gap: 5px;
+    margin-bottom: 10px;
 }
 
 .bhava-chip {
-    padding: 6px 12px;
+    padding: 5px 10px;
     border-radius: var(--radius-full);
     border: 1px solid var(--border);
     background: var(--bg-card);
     color: var(--text-secondary);
-    font-size: 0.78rem;
+    font-size: 0.74rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -606,18 +589,18 @@ textarea:focus {
     background: var(--saffron);
     color: #ffffff;
     border-color: var(--saffron);
-    box-shadow: 0 2px 8px var(--saffron-glow);
+    box-shadow: 0 2px 6px var(--saffron-glow);
 }
 
 /* Buttons */
 .btn {
     width: 100%;
-    padding: 10px 16px;
+    padding: 9px 14px;
     background: linear-gradient(135deg, var(--saffron), #cb5f1d);
     color: #ffffff;
     border: 1px solid var(--gold);
     border-radius: var(--radius-sm);
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     font-weight: 700;
     cursor: pointer;
     box-shadow: var(--shadow-sm);
@@ -645,8 +628,8 @@ textarea:focus {
 }
 
 .btn-small {
-    padding: 5px 12px;
-    font-size: 0.78rem;
+    padding: 4px 10px;
+    font-size: 0.76rem;
     width: auto;
 }
 
@@ -655,18 +638,17 @@ textarea:focus {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    padding: 10px 12px;
-    margin-bottom: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    transition: all 0.2s ease;
+    gap: 4px;
 }
 
 .karma-item.offered {
     background: var(--bg-accent-soft);
     border-color: var(--border-light);
-    opacity: 0.75;
+    opacity: 0.8;
 }
 
 .karma-top {
@@ -677,15 +659,15 @@ textarea:focus {
 }
 
 .karma-title {
-    font-size: 0.9rem;
+    font-size: 0.86rem;
     font-weight: 600;
     color: var(--text-primary);
 }
 
 .karma-bhava-tag {
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     font-weight: 600;
-    padding: 2px 8px;
+    padding: 2px 6px;
     border-radius: var(--radius-full);
     background: var(--bg-accent);
     color: var(--saffron);
@@ -696,51 +678,51 @@ textarea:focus {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 0.74rem;
+    font-size: 0.72rem;
     color: var(--text-muted);
 }
 
 /* Subtab Navigation (in Library) */
 .subtab-bar {
     display: flex;
-    gap: 6px;
+    gap: 5px;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    padding: 4px;
-    margin-bottom: 12px;
+    padding: 3px;
+    margin-bottom: 10px;
 }
 
 .subtab-btn {
     flex: 1;
-    padding: 7px 10px;
+    padding: 6px 8px;
     border: none;
     background: none;
     border-radius: var(--radius-sm);
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     font-weight: 600;
     color: var(--text-secondary);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
+    gap: 4px;
     transition: all 0.15s ease;
 }
 
 .subtab-btn.active {
     background: var(--saffron);
     color: #ffffff;
-    box-shadow: 0 2px 8px var(--saffron-glow);
+    box-shadow: 0 2px 6px var(--saffron-glow);
 }
 
 /* Sahasranama Collection Card */
 .collection-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: 12px 14px;
-    margin-bottom: 10px;
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-bottom: 8px;
 }
 
 .collection-header {
@@ -751,13 +733,13 @@ textarea:focus {
 }
 
 .collection-title {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 700;
     color: var(--saffron);
 }
 
 .collection-meta {
-    font-size: 0.74rem;
+    font-size: 0.72rem;
     color: var(--text-muted);
     margin-top: 2px;
 }
@@ -767,21 +749,21 @@ textarea:focus {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    padding: 16px;
-    margin-bottom: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
 }
 
 .quiz-option-btn {
     width: 100%;
-    padding: 12px 14px;
+    padding: 10px 12px;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);
     background: var(--bg-card);
     color: var(--text-primary);
-    font-size: 0.92rem;
+    font-size: 0.88rem;
     font-weight: 600;
     cursor: pointer;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -807,12 +789,12 @@ textarea:focus {
 .score-badge {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
+    gap: 3px;
+    padding: 3px 8px;
     background: var(--bg-accent);
     border: 1px solid var(--border);
     border-radius: var(--radius-full);
-    font-size: 0.74rem;
+    font-size: 0.72rem;
     font-weight: 700;
     color: var(--saffron);
 }
@@ -822,12 +804,12 @@ textarea:focus {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 12px;
+    padding: 6px 10px;
     background: var(--bg-accent-soft);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    margin-bottom: 6px;
-    font-size: 0.84rem;
+    margin-bottom: 5px;
+    font-size: 0.8rem;
     font-weight: 500;
 }
 
@@ -837,7 +819,7 @@ textarea:focus {
     color: var(--text-muted);
     cursor: pointer;
     padding: 4px;
-    font-size: 0.88rem;
+    font-size: 0.85rem;
     transition: color 0.15s;
 }
 
@@ -858,23 +840,23 @@ textarea:focus {
 .ios-step-row {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
+    gap: 8px;
+    padding: 6px 8px;
     background: var(--bg-primary);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    margin-bottom: 6px;
-    font-size: 0.82rem;
+    margin-bottom: 5px;
+    font-size: 0.78rem;
 }
 
 .ios-step-num {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     border-radius: var(--radius-full);
     background: var(--saffron);
     color: #fff;
     font-weight: 700;
-    font-size: 0.74rem;
+    font-size: 0.7rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -882,35 +864,46 @@ textarea:focus {
 }
 
 /* ==========================================================================
-   FLOATING BOTTOM NAVIGATION DOCK
+   COMPACT BOTTOM NAVIGATION DOCK (NATIVE APP FEEL)
    ========================================================================== */
 nav.bottom-dock {
     position: fixed;
-    bottom: 8px;
+    bottom: 0;
     left: 50%;
     transform: translateX(-50%);
-    width: calc(100% - 24px);
-    max-width: 500px;
-    height: var(--dock-height);
-    background: rgba(255, 255, 255, 0.88);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-full);
+    width: 100%;
+    max-width: 600px;
+    height: calc(var(--dock-height) + env(safe-area-inset-bottom));
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
     display: flex;
     justify-content: space-around;
-    align-items: center;
-    padding: 4px 8px;
-    box-shadow: var(--shadow-lg);
+    align-items: flex-start;
+    padding: 4px 6px env(safe-area-inset-bottom);
+    box-shadow: 0 -2px 10px rgba(43, 34, 26, 0.05);
     z-index: 100;
-    transition: all 0.25s ease;
+    transition: transform 0.2s ease;
 }
 
 [data-theme="dark"] nav.bottom-dock {
-    background: rgba(24, 25, 32, 0.88);
+    background: #14151b;
 }
 
-/* Hide dock when in immersive mode */
+/* Desktop float style */
+@media (min-width: 601px) {
+    nav.bottom-dock {
+        bottom: 8px;
+        width: calc(100% - 24px);
+        max-width: 500px;
+        height: var(--dock-height);
+        border-radius: var(--radius-full);
+        border: 1px solid var(--border);
+        align-items: center;
+        padding: 4px 8px;
+        box-shadow: var(--shadow-lg);
+    }
+}
+
 .app-wrapper.immersive-mode nav.bottom-dock {
     transform: translate(-50%, 150%);
     pointer-events: none;
@@ -923,21 +916,21 @@ nav.bottom-dock {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 2px;
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     font-weight: 600;
     cursor: pointer;
-    padding: 6px 0;
+    padding: 3px 0;
     border-radius: var(--radius-full);
     transition: all 0.15s ease;
 }
 
 .dock-item .dock-icon {
     font-size: 1.15rem;
-    transition: transform 0.15s ease;
+    line-height: 1;
 }
 
 .dock-item.active {
@@ -946,7 +939,7 @@ nav.bottom-dock {
 }
 
 .dock-item.active .dock-icon {
-    transform: scale(1.18);
+    transform: scale(1.15);
 }
 
 /* ==========================================================================
@@ -962,7 +955,6 @@ nav.bottom-dock {
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    animation: fadeIn 0.15s ease;
 }
 
 @media (min-width: 600px) {
@@ -974,12 +966,11 @@ nav.bottom-dock {
 .modal-dialog {
     background: var(--bg-card);
     width: 100%;
-    max-width: 520px;
+    max-width: 500px;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    padding: 20px 18px max(20px, env(safe-area-inset-bottom));
+    padding: 16px 14px max(16px, env(safe-area-inset-bottom));
     border: 1px solid var(--border);
     box-shadow: var(--shadow-lg);
-    animation: slideUpModal 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     max-height: 85vh;
     overflow-y: auto;
 }
@@ -990,24 +981,15 @@ nav.bottom-dock {
     }
 }
 
-@keyframes slideUpModal {
-    from {
-        transform: translateY(100%);
-    }
-    to {
-        transform: translateY(0);
-    }
-}
-
 .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 
 .modal-title {
-    font-size: 1.05rem;
+    font-size: 1rem;
     font-weight: 700;
     color: var(--text-primary);
 }
@@ -1017,13 +999,13 @@ nav.bottom-dock {
     border: 1px solid var(--border);
     color: var(--text-secondary);
     border-radius: var(--radius-full);
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
 }
 
 /* 1-Breath Smaran Overlay */
@@ -1036,10 +1018,9 @@ nav.bottom-dock {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 20px;
     text-align: center;
     color: #ffffff;
-    animation: fadeIn 0.2s ease;
 }
 
 [data-theme="dark"] .smaran-overlay {
@@ -1047,28 +1028,22 @@ nav.bottom-dock {
 }
 
 .overlay-om {
-    font-size: 4rem;
-    margin-bottom: 12px;
-    animation: pulseOm 3s infinite ease-in-out;
-}
-
-@keyframes pulseOm {
-    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(217, 107, 39, 0.4)); }
-    50% { transform: scale(1.08); filter: drop-shadow(0 0 24px rgba(217, 107, 39, 0.8)); }
+    font-size: 3.5rem;
+    margin-bottom: 10px;
 }
 
 .overlay-mantra {
-    font-size: 1.6rem;
+    font-size: 1.4rem;
     font-weight: 700;
     color: var(--gold);
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     line-height: 1.35;
 }
 
 .overlay-prompt {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     color: #e2d7cd;
-    max-width: 380px;
-    margin-bottom: 24px;
-    line-height: 1.5;
+    max-width: 360px;
+    margin-bottom: 20px;
+    line-height: 1.45;
 }
