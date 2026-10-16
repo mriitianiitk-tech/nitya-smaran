@@ -86,7 +86,8 @@ const DEFAULT_STATE = {
     likhitaList: [],
     karmas: [],
     bhavaOptions: DEFAULT_BHAVA_OPTIONS,
-    sahasranamas: INITIAL_SAHASRANAMAS
+    sahasranamas: INITIAL_SAHASRANAMAS,
+    favoriteKeys: []
 };
 
 const PRESETS = {
@@ -169,7 +170,8 @@ export default function App() {
                     ...DEFAULT_STATE,
                     ...parsed,
                     bhavaOptions: parsed.bhavaOptions?.length ? parsed.bhavaOptions : DEFAULT_BHAVA_OPTIONS,
-                    sahasranamas: parsed.sahasranamas?.length ? parsed.sahasranamas : INITIAL_SAHASRANAMAS
+                    sahasranamas: parsed.sahasranamas?.length ? parsed.sahasranamas : INITIAL_SAHASRANAMAS,
+                    favoriteKeys: Array.isArray(parsed.favoriteKeys) ? parsed.favoriteKeys : []
                 };
             } catch {
                 return DEFAULT_STATE;
@@ -259,6 +261,65 @@ export default function App() {
         return Array.from(new Set([...PRESET_DEITIES, ...fromCollections]));
     }, [state.sahasranamas]);
 
+    // Haptic vibration helper
+    const triggerHaptic = useCallback((pattern = 25) => {
+        if (typeof window !== "undefined" && window.navigator && window.navigator.vibrate) {
+            try {
+                window.navigator.vibrate(pattern);
+            } catch {}
+        }
+    }, []);
+
+    // Check if a name is in favorites
+    const isNameFavorited = useCallback((colId, nameItemOrStr) => {
+        if (!state.favoriteKeys || state.favoriteKeys.length === 0) return false;
+        const nameStr = typeof nameItemOrStr === "string" ? nameItemOrStr : nameItemOrStr?.name;
+        if (!nameStr) return false;
+        const key = `${colId || ""}:${nameStr}`;
+        return state.favoriteKeys.includes(key) || state.favoriteKeys.includes(nameStr);
+    }, [state.favoriteKeys]);
+
+    // Toggle favorite status for a name
+    const toggleFavoriteName = useCallback((colId, nameItemOrStr, e) => {
+        if (e && e.stopPropagation) e.stopPropagation();
+        triggerHaptic(45);
+        const nameStr = typeof nameItemOrStr === "string" ? nameItemOrStr : nameItemOrStr?.name;
+        if (!nameStr) return;
+        const key = `${colId || ""}:${nameStr}`;
+        setState(prev => {
+            const keys = prev.favoriteKeys || [];
+            const isFav = keys.includes(key) || keys.includes(nameStr);
+            const nextKeys = isFav
+                ? keys.filter(k => k !== key && k !== nameStr)
+                : [...keys, key];
+            return {
+                ...prev,
+                favoriteKeys: nextKeys
+            };
+        });
+    }, [triggerHaptic]);
+
+    // Memoized list of all favorited names across all collections
+    const allFavoriteNames = useMemo(() => {
+        if (!state.favoriteKeys || state.favoriteKeys.length === 0 || !state.sahasranamas) return [];
+        const list = [];
+        state.sahasranamas.forEach(col => {
+            (col.names || []).forEach(n => {
+                const key = `${col.id}:${n.name}`;
+                if (state.favoriteKeys.includes(key) || state.favoriteKeys.includes(n.name)) {
+                    list.push({
+                        ...n,
+                        collectionId: col.id,
+                        collectionTitle: col.title,
+                        deity: col.deity,
+                        collectionDeity: col.deity
+                    });
+                }
+            });
+        });
+        return list;
+    }, [state.sahasranamas, state.favoriteKeys]);
+
     // Toggle Ultra-Minimal Mode
     const toggleUltraMinimal = () => {
         setUltraMinimal(prev => {
@@ -342,7 +403,8 @@ export default function App() {
                     todayMalas: Math.max(prev.todayMalas, s.todayMalas || 0),
                     totalJapa: Math.max(prev.totalJapa, s.totalJapa || 0),
                     bhavaOptions: s.bhavaOptions?.length ? s.bhavaOptions : prev.bhavaOptions,
-                    sahasranamas: s.sahasranamas?.length ? s.sahasranamas : prev.sahasranamas
+                    sahasranamas: s.sahasranamas?.length ? s.sahasranamas : prev.sahasranamas,
+                    favoriteKeys: Array.isArray(s.favoriteKeys) ? s.favoriteKeys : (prev.favoriteKeys || [])
                 }));
             }
             setSyncStatus("☁️ Synced");
@@ -451,15 +513,20 @@ export default function App() {
         });
     }, [playBellSound]);
 
-    // Active names list for Fullscreen Nama Smaran (by Deity OR by Stotra OR All)
+    // Active names list for Fullscreen Nama Smaran (by Deity OR by Stotra OR All OR Favorites)
     const fsActiveNames = useMemo(() => {
         if (!state.sahasranamas || state.sahasranamas.length === 0) return [];
+        if (fsSelectedSource === "favorites") {
+            return allFavoriteNames;
+        }
         if (fsSelectedSource === "all") {
             return state.sahasranamas.flatMap(col =>
                 (col.names || []).map(n => ({
                     ...n,
+                    collectionId: col.id,
                     collectionTitle: col.title,
-                    collectionDeity: col.deity
+                    collectionDeity: col.deity,
+                    deity: col.deity
                 }))
             );
         }
@@ -470,8 +537,10 @@ export default function App() {
                 .flatMap(col =>
                     (col.names || []).map(n => ({
                         ...n,
+                        collectionId: col.id,
                         collectionTitle: col.title,
-                        collectionDeity: col.deity
+                        collectionDeity: col.deity,
+                        deity: col.deity
                     }))
                 );
         }
@@ -480,10 +549,12 @@ export default function App() {
         if (!col || !col.names) return [];
         return col.names.map(n => ({
             ...n,
+            collectionId: col.id,
             collectionTitle: col.title,
-            collectionDeity: col.deity
+            collectionDeity: col.deity,
+            deity: col.deity
         }));
-    }, [state.sahasranamas, fsSelectedSource]);
+    }, [state.sahasranamas, fsSelectedSource, allFavoriteNames]);
 
     const currentFsName = fsActiveNames.length > 0 ? fsActiveNames[fsNameIndex % fsActiveNames.length] : null;
 
@@ -796,12 +867,17 @@ export default function App() {
 
     // Review Subtab Names Filter
     const reviewFilteredNames = useMemo(() => {
+        if (!state.sahasranamas || state.sahasranamas.length === 0) return [];
+        if (reviewDeityFilter === "favorites") {
+            return allFavoriteNames;
+        }
         let pool = [];
         state.sahasranamas.forEach(col => {
             if (reviewDeityFilter === "all" || col.deity === reviewDeityFilter) {
                 col.names.forEach(n => {
                     pool.push({
                         ...n,
+                        collectionId: col.id,
                         collectionTitle: col.title,
                         deity: col.deity
                     });
@@ -809,7 +885,7 @@ export default function App() {
             }
         });
         return pool;
-    }, [state.sahasranamas, reviewDeityFilter]);
+    }, [state.sahasranamas, reviewDeityFilter, allFavoriteNames]);
 
     const currentReviewItem = reviewFilteredNames.length > 0
         ? reviewFilteredNames[reviewIndex % reviewFilteredNames.length]
@@ -832,29 +908,35 @@ export default function App() {
         setReviewIndex(i => (i - 1 + reviewFilteredNames.length) % reviewFilteredNames.length);
     };
 
-    // MCQ Game Generator (Supports 'all', 'deity:...', or 'col:...')
+    // MCQ Game Generator (Supports 'all', 'favorites', 'deity:...', or 'col:...')
     const generateQuizQuestion = useCallback((sourceOverride) => {
         const source = sourceOverride !== undefined ? sourceOverride : quizSourceFilter;
         let pool = [];
-        state.sahasranamas.forEach(col => {
-            let matches = false;
-            if (source === "all") matches = true;
-            else if (source.startsWith("deity:") && col.deity === source.replace("deity:", "")) matches = true;
-            else if (source.startsWith("col:") && col.id === source.replace("col:", "")) matches = true;
-            else if (col.id === source || col.deity === source) matches = true;
 
-            if (matches) {
-                col.names.forEach(n => {
-                    if (n.meaningHi || n.meaningEn) {
-                        pool.push({
-                            ...n,
-                            collectionTitle: col.title,
-                            deity: col.deity
-                        });
-                    }
-                });
-            }
-        });
+        if (source === "favorites") {
+            pool = allFavoriteNames.filter(n => n.meaningHi || n.meaningEn);
+        } else {
+            state.sahasranamas.forEach(col => {
+                let matches = false;
+                if (source === "all") matches = true;
+                else if (source.startsWith("deity:") && col.deity === source.replace("deity:", "")) matches = true;
+                else if (source.startsWith("col:") && col.id === source.replace("col:", "")) matches = true;
+                else if (col.id === source || col.deity === source) matches = true;
+
+                if (matches) {
+                    col.names.forEach(n => {
+                        if (n.meaningHi || n.meaningEn) {
+                            pool.push({
+                                ...n,
+                                collectionId: col.id,
+                                collectionTitle: col.title,
+                                deity: col.deity
+                            });
+                        }
+                    });
+                }
+            });
+        }
 
         if (pool.length < 2) {
             setQuizQuestion(null);
@@ -875,6 +957,8 @@ export default function App() {
             : [distractorItem.name, correctItem.name];
 
         setQuizQuestion({
+            collectionId: correctItem.collectionId,
+            nameId: correctItem.id,
             meaning: correctItem.meaningHi || correctItem.meaningEn,
             meaningSecondary: correctItem.meaningHi && correctItem.meaningEn ? correctItem.meaningEn : "",
             correctName: correctItem.name,
@@ -885,7 +969,7 @@ export default function App() {
         });
         setQuizSelectedOption(null);
         setQuizAnswerChecked(false);
-    }, [state.sahasranamas, quizSourceFilter]);
+    }, [state.sahasranamas, quizSourceFilter, allFavoriteNames]);
 
     useEffect(() => {
         if (activeTab === "library" && librarySubTab === "quiz" && !quizQuestion) {
@@ -964,6 +1048,7 @@ export default function App() {
                                     title="Choose Deity or Sahasranama source"
                                 >
                                     <option value="all">✨ All Sahasranamas (Combined)</option>
+                                    <option value="favorites">❤️ My Favorite Names ({allFavoriteNames.length})</option>
                                     <optgroup label="🔱 Filter by Deity">
                                         {allDeities.map(d => (
                                             <option key={`deity:${d}`} value={`deity:${d}`}>
@@ -1008,34 +1093,65 @@ export default function App() {
                                 onClick={handleChantAndNext}
                                 title="Tap anywhere to chant & advance"
                             >
-                                <div className="sacred-meta-row">
-                                    <span>{currentFsName ? currentFsName.collectionTitle : state.deityName}</span>
-                                    {fsActiveNames.length > 0 && (
-                                        <span>• {(fsNameIndex % fsActiveNames.length) + 1} / {fsActiveNames.length}</span>
-                                    )}
-                                </div>
-
-                                <div className="sacred-name-text">
-                                    {currentFsName ? currentFsName.name : state.mantra}
-                                </div>
-
-                                {fsShowMeaning && currentFsName && (
-                                    <div
-                                        className="sacred-meaning-box"
-                                        onClick={e => e.stopPropagation()}
+                                {currentFsName && (
+                                    <button
+                                        className={`floating-sacred-heart ${isNameFavorited(currentFsName.collectionId, currentFsName.name) ? "active" : ""}`}
+                                        onClick={(e) => toggleFavoriteName(currentFsName.collectionId, currentFsName.name, e)}
+                                        title={isNameFavorited(currentFsName.collectionId, currentFsName.name) ? "Favorited (Tap to remove)" : "Add to Favorites"}
+                                        aria-label="Favorite Name"
                                     >
-                                        {currentFsName.meaningHi && (
-                                            <div className="sacred-meaning-hi">{currentFsName.meaningHi}</div>
-                                        )}
-                                        {currentFsName.meaningEn && (
-                                            <div className="sacred-meaning-en">{currentFsName.meaningEn}</div>
-                                        )}
-                                    </div>
+                                        <span>{isNameFavorited(currentFsName.collectionId, currentFsName.name) ? "❤️" : "🤍"}</span>
+                                    </button>
                                 )}
 
-                                <div className="sacred-tap-prompt">
-                                    Tap anywhere to count bead & advance ({fsRandomMode ? "Random" : "Sequential"})
-                                </div>
+                                {fsSelectedSource === "favorites" && fsActiveNames.length === 0 ? (
+                                    <div style={{ textAlign: "center", padding: "24px 12px" }}>
+                                        <div style={{ fontSize: "2.2rem", marginBottom: "8px" }}>🤍</div>
+                                        <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--saffron)", marginBottom: "6px" }}>
+                                            No Favorite Names Yet
+                                        </div>
+                                        <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginBottom: "14px" }}>
+                                            Tap the floating ❤️ on any name in <strong>Nama Smaran</strong>, <strong>Flashcards</strong>, or the <strong>Quiz</strong> to add favorites here!
+                                        </div>
+                                        <button
+                                            className="btn btn-small"
+                                            onClick={(e) => { e.stopPropagation(); setFsSelectedSource("all"); }}
+                                        >
+                                            Chant All Names
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="sacred-meta-row">
+                                            <span>{currentFsName ? currentFsName.collectionTitle : state.deityName}</span>
+                                            {fsActiveNames.length > 0 && (
+                                                <span>• {(fsNameIndex % fsActiveNames.length) + 1} / {fsActiveNames.length}</span>
+                                            )}
+                                        </div>
+
+                                        <div className="sacred-name-text">
+                                            {currentFsName ? currentFsName.name : state.mantra}
+                                        </div>
+
+                                        {fsShowMeaning && currentFsName && (
+                                            <div
+                                                className="sacred-meaning-box"
+                                                onClick={e => e.stopPropagation()}
+                                            >
+                                                {currentFsName.meaningHi && (
+                                                    <div className="sacred-meaning-hi">{currentFsName.meaningHi}</div>
+                                                )}
+                                                {currentFsName.meaningEn && (
+                                                    <div className="sacred-meaning-en">{currentFsName.meaningEn}</div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <div className="sacred-tap-prompt">
+                                            Tap anywhere to count bead & advance ({fsRandomMode ? "Random" : "Sequential"})
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             {/* Bottom Controls */}
@@ -1198,6 +1314,13 @@ export default function App() {
                                 <span>Collections</span>
                             </button>
                             <button
+                                className={`subtab-btn ${librarySubTab === "favorites" ? "active" : ""}`}
+                                onClick={() => setLibrarySubTab("favorites")}
+                            >
+                                <span>❤️</span>
+                                <span>Favorites ({allFavoriteNames.length})</span>
+                            </button>
+                            <button
                                 className={`subtab-btn ${librarySubTab === "review" ? "active" : ""}`}
                                 onClick={() => { setLibrarySubTab("review"); setReviewIndex(0); setShowReviewMeaning(false); }}
                             >
@@ -1327,12 +1450,23 @@ export default function App() {
                                                                         <strong style={{ color: "var(--saffron)", marginRight: "6px" }}>{nameItem.name}</strong>
                                                                         <span style={{ color: "var(--text-secondary)" }}>{nameItem.meaningHi || nameItem.meaningEn}</span>
                                                                     </div>
-                                                                    <button
-                                                                        className="icon-action-btn delete"
-                                                                        onClick={() => handleDeleteName(col.id, nameItem.id)}
-                                                                    >
-                                                                        ✕
-                                                                    </button>
+                                                                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                                                        <button
+                                                                            className="icon-action-btn"
+                                                                            onClick={(e) => toggleFavoriteName(col.id, nameItem.name, e)}
+                                                                            title={isNameFavorited(col.id, nameItem.name) ? "Favorited (Tap to remove)" : "Add to favorites"}
+                                                                            style={{ fontSize: "0.85rem", color: isNameFavorited(col.id, nameItem.name) ? "#ff4757" : "var(--text-muted)" }}
+                                                                        >
+                                                                            {isNameFavorited(col.id, nameItem.name) ? "❤️" : "🤍"}
+                                                                        </button>
+                                                                        <button
+                                                                            className="icon-action-btn delete"
+                                                                            onClick={() => handleDeleteName(col.id, nameItem.id)}
+                                                                            title="Delete Name"
+                                                                        >
+                                                                            ✕
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
                                                             ))
                                                         )}
@@ -1342,6 +1476,82 @@ export default function App() {
                                         </div>
                                     );
                                 })}
+                            </div>
+                        )}
+
+                        {/* SUBTAB: FAVORITES LIST */}
+                        {librarySubTab === "favorites" && (
+                            <div className="card">
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "6px" }}>
+                                    <div>
+                                        <div className="card-title" style={{ margin: 0 }}>❤️ My Favorite Names</div>
+                                        <div className="card-desc" style={{ fontSize: "0.74rem", margin: "2px 0 0" }}>
+                                            {allFavoriteNames.length} names selected across all Sahasranamas & Stotras
+                                        </div>
+                                    </div>
+                                    {allFavoriteNames.length > 0 && (
+                                        <div style={{ display: "flex", gap: "6px" }}>
+                                            <button
+                                                className="btn btn-small"
+                                                onClick={() => {
+                                                    setFsSelectedSource("favorites");
+                                                    setActiveTab("nama");
+                                                    setFsNameIndex(0);
+                                                }}
+                                                title="Chant only favorite names"
+                                            >
+                                                📿 Chant
+                                            </button>
+                                            <button
+                                                className="btn btn-secondary btn-small"
+                                                onClick={() => {
+                                                    setQuizSourceFilter("favorites");
+                                                    setLibrarySubTab("quiz");
+                                                    generateQuizQuestion("favorites");
+                                                }}
+                                                title="Play quiz on favorite names"
+                                            >
+                                                🎮 Quiz
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {allFavoriteNames.length === 0 ? (
+                                    <div style={{ textAlign: "center", padding: "24px 12px", color: "var(--text-muted)" }}>
+                                        <div style={{ fontSize: "2rem", marginBottom: "6px" }}>🤍</div>
+                                        <div style={{ fontWeight: 600, fontSize: "0.92rem", color: "var(--text-primary)" }}>No Favorites Yet</div>
+                                        <div style={{ fontSize: "0.78rem", marginTop: "4px" }}>
+                                            Tap the floating heart (❤️) on any name in Nama Smaran chanting, Flashcards, or the Quiz to add it to your sacred favorites list.
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div style={{ maxHeight: "360px", overflowY: "auto" }}>
+                                        {allFavoriteNames.map((n, idx) => (
+                                            <div key={idx} className="favorite-name-item">
+                                                <div style={{ flex: 1, minWidth: 0, paddingRight: "8px" }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                                        <strong style={{ color: "var(--saffron)", fontSize: "0.94rem" }}>{n.name}</strong>
+                                                        <span style={{ fontSize: "0.68rem", background: "var(--bg-accent)", padding: "1px 6px", borderRadius: "10px", color: "var(--text-muted)" }}>
+                                                            {n.deity || n.collectionTitle}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginTop: "2px" }}>
+                                                        {n.meaningHi || n.meaningEn}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    className="icon-action-btn"
+                                                    onClick={(e) => toggleFavoriteName(n.collectionId, n.name, e)}
+                                                    title="Remove from favorites"
+                                                    style={{ fontSize: "1rem", color: "#ff4757" }}
+                                                >
+                                                    ❤️
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -1357,6 +1567,7 @@ export default function App() {
                                             style={{ padding: "4px 6px", fontSize: "0.76rem" }}
                                         >
                                             <option value="all">All Deities</option>
+                                            <option value="favorites">❤️ Favorites ({allFavoriteNames.length})</option>
                                             {allDeities.map(d => (
                                                 <option key={d} value={d}>🔱 {d}</option>
                                             ))}
@@ -1379,6 +1590,15 @@ export default function App() {
                                             onClick={() => setShowReviewMeaning(s => !s)}
                                             style={{ minHeight: "200px", marginBottom: "10px" }}
                                         >
+                                            <button
+                                                className={`floating-sacred-heart ${isNameFavorited(currentReviewItem.collectionId, currentReviewItem.name) ? "active" : ""}`}
+                                                onClick={(e) => toggleFavoriteName(currentReviewItem.collectionId, currentReviewItem.name, e)}
+                                                title={isNameFavorited(currentReviewItem.collectionId, currentReviewItem.name) ? "Favorited (Tap to remove)" : "Add to Favorites"}
+                                                aria-label="Favorite Name"
+                                            >
+                                                <span>{isNameFavorited(currentReviewItem.collectionId, currentReviewItem.name) ? "❤️" : "🤍"}</span>
+                                            </button>
+
                                             <div className="sacred-meta-row">
                                                 <span>{currentReviewItem.collectionTitle}</span>
                                                 <span>• {(reviewIndex % reviewFilteredNames.length) + 1} / {reviewFilteredNames.length}</span>
@@ -1425,7 +1645,7 @@ export default function App() {
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                                     <div>
                                         <div className="card-title" style={{ margin: 0 }}>🎮 Nama Reminder Game</div>
-                                        <div style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>
+                                        <div className="quiz-subtitle" style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>
                                             Identify Bhagwan's Name from the Divine Meaning
                                         </div>
                                     </div>
@@ -1436,7 +1656,7 @@ export default function App() {
                                 </div>
 
                                 {/* DEITY / STOTRA CHOOSER FOR QUIZ */}
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px", margin: "10px 0 12px", background: "var(--bg-accent)", padding: "6px 10px", borderRadius: "var(--radius-sm)" }}>
+                                <div className="quiz-source-bar" style={{ display: "flex", alignItems: "center", gap: "8px", margin: "10px 0 12px", background: "var(--bg-accent)", padding: "6px 10px", borderRadius: "var(--radius-sm)" }}>
                                     <label style={{ margin: 0, fontSize: "0.76rem", fontWeight: 700, color: "var(--saffron)", whiteSpace: "nowrap" }}>
                                         🎯 Play From:
                                     </label>
@@ -1450,6 +1670,7 @@ export default function App() {
                                         style={{ flex: 1, padding: "4px 8px", fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}
                                     >
                                         <option value="all">✨ All Sahasranamas & Deities</option>
+                                        <option value="favorites">❤️ My Favorite Names Only ({allFavoriteNames.length} names)</option>
                                         <optgroup label="🔱 Filter by Deity">
                                             {allDeities.map(d => (
                                                 <option key={`deity:${d}`} value={`deity:${d}`}>
@@ -1469,14 +1690,15 @@ export default function App() {
 
                                 {quizQuestion ? (
                                     <div>
-                                        <div style={{
-                                            background: "var(--bg-accent-soft)",
-                                            border: "1px solid var(--border)",
-                                            borderRadius: "var(--radius-sm)",
-                                            padding: "12px",
-                                            marginBottom: "12px",
-                                            textAlign: "center"
-                                        }}>
+                                        <div className="quiz-question-box">
+                                            <button
+                                                className={`floating-sacred-heart ${isNameFavorited(quizQuestion.collectionId, quizQuestion.correctName) ? "active" : ""}`}
+                                                onClick={(e) => toggleFavoriteName(quizQuestion.collectionId, quizQuestion.correctName, e)}
+                                                title={isNameFavorited(quizQuestion.collectionId, quizQuestion.correctName) ? "Favorited (Tap to remove)" : "Add to Favorites"}
+                                                aria-label="Favorite this Name"
+                                            >
+                                                <span>{isNameFavorited(quizQuestion.collectionId, quizQuestion.correctName) ? "❤️" : "🤍"}</span>
+                                            </button>
                                             <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginBottom: "3px" }}>
                                                 {quizQuestion.collectionTitle} ({quizQuestion.deity})
                                             </div>
@@ -1519,7 +1741,16 @@ export default function App() {
                                     </div>
                                 ) : (
                                     <div style={{ textAlign: "center", padding: "18px", color: "var(--text-muted)", fontSize: "0.82rem" }}>
-                                        Not enough names with meanings found for this filter. Please choose another Deity/Stotram or add more names!
+                                        {quizSourceFilter === "favorites" ? (
+                                            <span>
+                                                ❤️ You need at least 2 favorited names with meanings to play the Quiz in Favorites mode.<br/>
+                                                <span style={{ fontSize: "0.76rem" }}>
+                                                    Tap the floating ❤️ on any name in <strong>Nama Smaran</strong>, <strong>Flashcards</strong>, or the <strong>Stotra Library</strong> to add favorites!
+                                                </span>
+                                            </span>
+                                        ) : (
+                                            "Not enough names with meanings found for this filter. Please choose another Deity/Stotram or add more names!"
+                                        )}
                                     </div>
                                 )}
                             </div>

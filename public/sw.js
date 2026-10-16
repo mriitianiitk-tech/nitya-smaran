@@ -1,5 +1,5 @@
 // Nitya Smaran Service Worker — Network-First for HTML, Stale-While-Revalidate for Assets
-const CACHE_NAME = "nitya-smaran-v3";
+const CACHE_NAME = "nitya-smaran-v4";
 
 const STATIC_ASSETS = [
   "/",

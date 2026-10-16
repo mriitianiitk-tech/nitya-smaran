@@ -89,24 +89,160 @@ html, body {
 }
 
 /* ==========================================================================
-   ULTRA-MINIMAL MODE STYLES
+   ULTRA-MINIMAL MODE STYLES (COMPREHENSIVE)
    ========================================================================== */
-.ultra-minimal .standard-only {
+.ultra-minimal .standard-only,
+.ultra-minimal .card-desc,
+.ultra-minimal .sacred-tap-prompt,
+.ultra-minimal .quiz-subtitle,
+.ultra-minimal .score-badge,
+.ultra-minimal .karma-quote-banner,
+.ultra-minimal .helper-hint,
+.ultra-minimal .minimal-hide {
     display: none !important;
 }
 
 .ultra-minimal .card {
     border-color: var(--border-light);
     box-shadow: none;
-    padding: 10px 12px;
+    padding: 8px 10px;
+    background: var(--bg-card);
 }
 
 .ultra-minimal header.app-header {
-    padding: 6px 12px 4px;
+    padding: 4px 10px 3px;
+    border-bottom: 1px solid var(--border-light);
 }
 
 .ultra-minimal .deity-title {
-    font-size: 1.05rem;
+    font-size: 0.98rem;
+}
+
+.ultra-minimal .header-pills-row {
+    gap: 4px;
+}
+
+.ultra-minimal .nudge-pill {
+    padding: 2px 7px;
+    font-size: 0.68rem;
+}
+
+/* Quiz in Ultra-Minimal */
+.ultra-minimal .quiz-card {
+    border-color: var(--border-light);
+    box-shadow: none;
+    padding: 8px 10px;
+}
+
+.ultra-minimal .quiz-question-box {
+    padding: 10px 38px 10px 10px;
+    background: transparent;
+    border: 1px solid var(--border-light);
+}
+
+.ultra-minimal .quiz-option-btn {
+    padding: 8px 10px;
+    font-size: 0.85rem;
+    box-shadow: none;
+    border-color: var(--border-light);
+}
+
+.ultra-minimal .quiz-source-bar {
+    padding: 3px 6px !important;
+    background: transparent !important;
+    border: 1px solid var(--border-light) !important;
+}
+
+/* Nama Smaran Canvas in Ultra-Minimal */
+.ultra-minimal .nama-top-bar {
+    padding: 3px 6px;
+    gap: 4px;
+}
+
+.ultra-minimal .sacred-chant-canvas {
+    border-color: var(--border-light);
+    box-shadow: none;
+    background: transparent;
+}
+
+.ultra-minimal .sacred-name-text {
+    letter-spacing: 0.5px;
+}
+
+/* Collections in Ultra-Minimal */
+.ultra-minimal .collection-card {
+    padding: 6px 10px;
+    border-color: var(--border-light);
+    box-shadow: none;
+}
+
+/* ==========================================================================
+   FLOATING SACRED HEART (FAVORITING)
+   ========================================================================== */
+.floating-sacred-heart {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.15rem;
+    color: var(--text-muted);
+    box-shadow: var(--shadow-sm);
+    z-index: 15;
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.floating-sacred-heart:hover {
+    transform: scale(1.15);
+}
+
+.floating-sacred-heart:active {
+    transform: scale(0.92);
+}
+
+.floating-sacred-heart.active {
+    border-color: #ff4757;
+    background: #fff0f3;
+    color: #ff4757;
+    transform: scale(1.08);
+    box-shadow: 0 2px 8px rgba(255, 71, 87, 0.25);
+}
+
+[data-theme="dark"] .floating-sacred-heart.active {
+    background: #36141a;
+    border-color: #ff4757;
+}
+
+.quiz-question-box {
+    position: relative;
+    background: var(--bg-accent-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 42px 12px 14px;
+    margin-bottom: 12px;
+    text-align: center;
+}
+
+.favorite-name-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    margin-bottom: 6px;
+}
+
+.favorite-name-item:last-child {
+    margin-bottom: 0;
 }
 
 /* ==========================================================================
