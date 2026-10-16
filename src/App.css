@@ -1,31 +1,60 @@
+/* ==========================================================================
+   NITYA SMARAN (नित्य स्मरण) — SACRED ASHRAM DESIGN SYSTEM
+   Ultra-Clean, Minimal, Smartphone-Optimized Fullscreen Chanting & Karma Yoga
+   ========================================================================== */
+
 :root {
-    --bg-primary: #fdfbf7;
+    /* Sacred Ashram Gold & Warm Ivory Palette */
+    --bg-primary: #faf7f2;
     --bg-card: #ffffff;
-    --bg-accent: #fff5e6;
-    --text-primary: #2c1e14;
-    --text-secondary: #6e5a4f;
+    --bg-accent: #f8f1e5;
+    --bg-accent-soft: #fdfaf6;
+    --text-primary: #2b221a;
+    --text-secondary: #6e5d50;
+    --text-muted: #9c8a7d;
     --saffron: #d96b27;
-    --saffron-light: #f4a261;
-    --gold: #c89d54;
+    --saffron-hover: #c45d1d;
+    --saffron-light: #fff2e6;
+    --saffron-glow: rgba(217, 107, 39, 0.22);
+    --gold: #c69438;
     --border: #ebdccb;
+    --border-light: #f3e9de;
     --success: #2e7d32;
-    --shadow: 0 4px 20px rgba(44, 30, 20, 0.06);
+    --danger: #d32f2f;
+    --shadow-sm: 0 2px 6px rgba(43, 34, 26, 0.04);
+    --shadow: 0 4px 18px rgba(43, 34, 26, 0.07);
+    --shadow-lg: 0 10px 30px rgba(43, 34, 26, 0.12);
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --radius-full: 9999px;
+    --dock-height: 64px;
 }
 
 [data-theme="dark"] {
-    --bg-primary: #12131a;
-    --bg-card: #1c1e26;
-    --bg-accent: #272220;
+    /* Temple Midnight OLED Dark */
+    --bg-primary: #0f1015;
+    --bg-card: #181920;
+    --bg-accent: #252321;
+    --bg-accent-soft: #1e1d24;
     --text-primary: #f5ebe1;
     --text-secondary: #a89f96;
+    --text-muted: #787068;
     --saffron: #e77c3b;
-    --saffron-light: #f4a261;
+    --saffron-hover: #f18c4e;
+    --saffron-light: #2c2019;
+    --saffron-glow: rgba(231, 124, 59, 0.3);
     --gold: #d4ac63;
-    --border: #2f323d;
+    --border: #2d303b;
+    --border-light: #242630;
     --success: #66bb6a;
-    --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    --danger: #ef5350;
+    --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.25);
+    --shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.65);
 }
 
+/* Reset & Global */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -34,45 +63,82 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Devanagari", sans-serif;
 }
 
-body {
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
+html, body {
+    width: 100%;
     min-height: 100vh;
     min-height: 100dvh;
-    transition: background-color 0.3s, color 0.3s;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.25s, color 0.25s;
 }
 
 #root,
 .app-wrapper {
+    width: 100%;
     min-height: 100vh;
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding-bottom: calc(64px + env(safe-area-inset-bottom));
-    width: 100%;
+    position: relative;
+    padding-bottom: calc(var(--dock-height) + env(safe-area-inset-bottom) + 8px);
 }
 
-/* Header & Always-On Naam Banner */
-header {
+/* When in pure immersive fullscreen mode on nama tab */
+.app-wrapper.immersive-mode {
+    padding-bottom: 0 !important;
+}
+
+/* ==========================================================================
+   ULTRA-MINIMAL MODE STYLES
+   ========================================================================== */
+.ultra-minimal .standard-only {
+    display: none !important;
+}
+
+.ultra-minimal .card {
+    border-color: var(--border-light);
+    box-shadow: none;
+    padding: 12px 14px;
+}
+
+.ultra-minimal header {
+    padding: 8px 14px 6px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.ultra-minimal .deity-title {
+    font-size: 1.15rem;
+}
+
+.ultra-minimal .mantra-subtitle {
+    display: none;
+}
+
+/* ==========================================================================
+   APP HEADER
+   ========================================================================== */
+header.app-header {
     width: 100%;
     max-width: 600px;
     padding: 12px 16px 10px;
     text-align: center;
-    border-bottom: 1px solid var(--border);
     background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
-    z-index: 100;
-    box-shadow: var(--shadow);
+    z-index: 90;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
 }
 
 .deity-title {
-    font-size: 1.4rem;
+    font-size: 1.35rem;
     font-weight: 700;
     color: var(--saffron);
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -80,183 +146,487 @@ header {
 }
 
 .mantra-subtitle {
-    font-size: 0.95rem;
+    font-size: 0.88rem;
     color: var(--text-secondary);
-    margin-top: 4px;
+    margin-top: 3px;
     font-weight: 500;
+}
+
+.header-pills-row {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+    align-items: center;
 }
 
 .nudge-pill {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
+    gap: 5px;
+    padding: 4px 10px;
     background: var(--bg-accent);
     border: 1px solid var(--border);
-    border-radius: 20px;
-    font-size: 0.78rem;
+    border-radius: var(--radius-full);
+    font-size: 0.74rem;
+    font-weight: 600;
     color: var(--text-secondary);
     cursor: pointer;
     user-select: none;
-    transition: border-color 0.2s;
+    transition: all 0.15s ease;
 }
 
 .nudge-pill:hover {
     border-color: var(--saffron);
+    color: var(--saffron);
 }
 
-/* Main Container */
-main {
+.nudge-pill.active {
+    background: var(--saffron);
+    color: #fff;
+    border-color: var(--saffron);
+}
+
+.install-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 11px;
+    background: linear-gradient(135deg, var(--saffron), #cb5f1d);
+    color: #ffffff;
+    border: 1px solid var(--gold);
+    border-radius: var(--radius-full);
+    font-size: 0.74rem;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+    box-shadow: 0 2px 8px var(--saffron-glow);
+    animation: gentlePulse 3s infinite ease-in-out;
+}
+
+@keyframes gentlePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+}
+
+/* ==========================================================================
+   MAIN CONTENT CONTAINER
+   ========================================================================== */
+main.app-main {
     width: 100%;
     max-width: 600px;
-    padding: 12px 14px;
+    padding: 10px 14px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.tab-pane {
+    display: none;
+    animation: fadeSlideUp 0.2s ease forwards;
+    width: 100%;
+}
+
+.tab-pane.active {
+    display: flex;
+    flex-direction: column;
     flex: 1;
 }
 
-.tab-content {
-    display: none;
-    animation: fadeIn 0.25s ease;
-}
-
-.tab-content.active {
-    display: block;
-}
-
-@keyframes fadeIn {
+@keyframes fadeSlideUp {
     from {
         opacity: 0;
-        transform: translateY(6px);
+        transform: translateY(4px);
     }
-
     to {
         opacity: 1;
         transform: translateY(0);
     }
 }
 
-/* Cards */
-.card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 16px;
-    margin-bottom: 12px;
-    box-shadow: var(--shadow);
+/* ==========================================================================
+   TAB 1: FULLSCREEN NAMA SMARAN & JAPA CHANTING (DEFAULT)
+   ========================================================================== */
+.fullscreen-nama-view {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: calc(100dvh - 140px);
+    position: relative;
+    user-select: none;
+    padding: 4px 0 8px;
 }
 
-.card-title {
-    font-size: 1.05rem;
-    font-weight: 600;
-    margin-bottom: 6px;
-    color: var(--text-primary);
+.app-wrapper.immersive-mode .fullscreen-nama-view {
+    min-height: 100dvh;
+    padding: max(12px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom));
+}
+
+/* Top Floating Controls in Nama View */
+.nama-top-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 8px;
 }
 
-.card-desc {
-    font-size: 0.83rem;
-    color: var(--text-secondary);
-    margin-bottom: 12px;
-    line-height: 1.38;
-}
-
-/* Verse Banner */
-.shloka-box {
-    background: var(--bg-accent);
-    border-left: 4px solid var(--saffron);
-    padding: 14px 16px;
-    border-radius: 10px;
-    margin-bottom: 18px;
-}
-
-.shloka-sanskrit {
-    font-size: 1rem;
+.nama-collection-select {
+    flex: 1;
+    max-width: 220px;
+    padding: 5px 8px;
+    font-size: 0.78rem;
     font-weight: 600;
     color: var(--saffron);
-    margin-bottom: 6px;
-    line-height: 1.5;
+    background: var(--bg-accent);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    outline: none;
 }
 
-.shloka-meaning {
-    font-size: 0.85rem;
+.nama-bead-badge {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: var(--bg-accent-soft);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.nama-icon-btn {
+    background: var(--bg-accent-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    padding: 5px 10px;
+    font-size: 0.76rem;
+    font-weight: 600;
     color: var(--text-secondary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s ease;
+}
+
+.nama-icon-btn:hover {
+    color: var(--saffron);
+    border-color: var(--saffron);
+}
+
+/* Tap-Anywhere Sacred Canvas */
+.sacred-chant-canvas {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px 12px;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-accent-soft) 100%);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.08s ease, box-shadow 0.15s ease;
+    margin-bottom: 12px;
+    min-height: 280px;
+}
+
+.sacred-chant-canvas:active {
+    transform: scale(0.985);
+    box-shadow: 0 2px 10px var(--saffron-glow);
+}
+
+.sacred-meta-row {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sacred-name-text {
+    font-size: clamp(2.4rem, 11vw, 4.2rem);
+    font-weight: 700;
+    color: var(--saffron);
+    line-height: 1.25;
+    letter-spacing: 0.5px;
+    text-shadow: 0 4px 22px var(--saffron-glow);
+    margin-bottom: 12px;
+    transition: transform 0.12s ease;
+}
+
+.sacred-meaning-box {
+    width: 100%;
+    max-width: 440px;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    margin-top: 10px;
+    animation: fadeSlideUp 0.15s ease;
+    text-align: center;
+}
+
+.sacred-meaning-hi {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.45;
+    margin-bottom: 4px;
+}
+
+.sacred-meaning-en {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-style: italic;
     line-height: 1.4;
 }
 
-/* Inputs & Buttons */
-.input-group {
-    margin-bottom: 14px;
+.sacred-tap-prompt {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    margin-top: 14px;
+    opacity: 0.85;
 }
 
-label {
-    display: block;
-    font-size: 0.85rem;
-    font-weight: 600;
-    margin-bottom: 6px;
-    color: var(--text-secondary);
-}
-
-input[type="text"],
-select,
-textarea {
-    width: 100%;
-    padding: 12px 14px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    font-size: 0.95rem;
-    outline: none;
-    transition: border-color 0.2s;
-}
-
-input[type="text"]:focus,
-select:focus,
-textarea:focus {
-    border-color: var(--saffron);
-}
-
-.bhava-chips {
+/* Bottom Controls in Nama View */
+.sacred-bottom-panel {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: center;
     gap: 8px;
-    margin-bottom: 16px;
-}
-
-.bhava-chip {
-    padding: 8px 13px;
-    border-radius: 20px;
-    border: 1px solid var(--border);
-    background: var(--bg-primary);
-    color: var(--text-secondary);
-    font-size: 0.82rem;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.bhava-chip.selected {
-    background: var(--saffron);
-    color: #fff;
-    border-color: var(--saffron);
-    font-weight: 600;
-}
-
-.btn {
     width: 100%;
-    padding: 13px 18px;
-    border: none;
-    border-radius: 12px;
-    background: var(--saffron);
-    color: #fff;
-    font-size: 0.95rem;
-    font-weight: 600;
+}
+
+.sacred-controls-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.btn-chant-primary {
+    flex: 1;
+    max-width: 250px;
+    padding: 13px 20px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, var(--saffron), #cb5f1d);
+    color: #ffffff;
+    font-size: 1.02rem;
+    font-weight: 700;
+    border: 2px solid var(--gold);
     cursor: pointer;
-    transition: transform 0.1s, opacity 0.2s;
+    box-shadow: 0 5px 18px var(--saffron-glow);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    user-select: none;
+    transition: transform 0.08s ease, filter 0.15s ease;
+}
+
+.btn-chant-primary:active {
+    transform: scale(0.95);
+    filter: brightness(1.05);
+}
+
+.btn-nav-circle {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.12s ease;
+}
+
+.btn-nav-circle:active {
+    transform: scale(0.92);
+}
+
+.sacred-sub-stats {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+}
+
+/* ==========================================================================
+   CARDS & COMMON UI
+   ========================================================================== */
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+}
+
+.card-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.card-desc {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.45;
+    margin-bottom: 12px;
+}
+
+/* Shloka Quote Box */
+.shloka-box {
+    background: linear-gradient(135deg, var(--bg-card), var(--bg-accent));
+    border-left: 4px solid var(--saffron);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    border-top: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+.shloka-sanskrit {
+    font-size: 0.96rem;
+    font-weight: 600;
+    color: var(--saffron);
+    line-height: 1.5;
+    margin-bottom: 4px;
+}
+
+.shloka-meaning {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-style: italic;
+    line-height: 1.4;
+}
+
+/* Form Controls */
+.input-group {
+    margin-bottom: 12px;
+}
+
+label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+}
+
+input[type="text"],
+input[type="number"],
+input[type="file"],
+select,
+textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--saffron);
+    box-shadow: 0 0 0 2px var(--saffron-glow);
+}
+
+/* Bhava Chips */
+.bhava-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.bhava-chip {
+    padding: 6px 12px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.bhava-chip:hover {
+    border-color: var(--saffron);
+    color: var(--saffron);
+}
+
+.bhava-chip.selected {
+    background: var(--saffron);
+    color: #ffffff;
+    border-color: var(--saffron);
+    box-shadow: 0 2px 8px var(--saffron-glow);
+}
+
+/* Buttons */
+.btn {
+    width: 100%;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, var(--saffron), #cb5f1d);
+    color: #ffffff;
+    border: 1px solid var(--gold);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+    user-select: none;
 }
 
 .btn:active {
@@ -264,588 +634,185 @@ textarea:focus {
 }
 
 .btn-secondary {
-    background: var(--bg-accent);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+    border-color: var(--saffron);
     color: var(--saffron);
-    border: 1px solid var(--saffron);
 }
 
 .btn-small {
+    padding: 5px 12px;
+    font-size: 0.78rem;
     width: auto;
-    padding: 8px 14px;
-    font-size: 0.82rem;
-    border-radius: 8px;
 }
 
-/* Karma Item List */
+/* Karma Items */
 .karma-item {
+    background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 14px;
-    margin-bottom: 12px;
-    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-bottom: 8px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    transition: all 0.25s;
+    gap: 6px;
+    transition: all 0.2s ease;
 }
 
 .karma-item.offered {
-    opacity: 0.78;
-    border-left: 4px solid var(--success);
+    background: var(--bg-accent-soft);
+    border-color: var(--border-light);
+    opacity: 0.75;
 }
 
 .karma-top {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: 10px;
+    align-items: center;
+    gap: 8px;
 }
 
 .karma-title {
+    font-size: 0.9rem;
     font-weight: 600;
-    font-size: 0.98rem;
+    color: var(--text-primary);
 }
 
 .karma-bhava-tag {
-    font-size: 0.75rem;
-    padding: 3px 9px;
-    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
     background: var(--bg-accent);
     color: var(--saffron);
-    font-weight: 600;
-    white-space: nowrap;
+    border: 1px solid var(--border);
 }
 
-.karma-meta {
-    font-size: 0.78rem;
-    color: var(--text-secondary);
+.karma-bottom {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    font-size: 0.74rem;
+    color: var(--text-muted);
 }
 
-/* Mala Counter */
-.mala-circle-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 8px 0;
-}
-
-.mala-tap-btn {
-    width: min(180px, 46vw);
-    height: min(180px, 46vw);
-    border-radius: 50%;
-    border: 5px solid var(--saffron);
-    background: var(--bg-accent);
-    color: var(--text-primary);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    user-select: none;
-    box-shadow: 0 6px 24px rgba(217, 107, 39, 0.16);
-    transition: transform 0.08s, background-color 0.2s;
-    padding: 12px;
-    text-align: center;
-}
-
-.mala-tap-btn:active {
-    transform: scale(0.95);
-}
-
-.mala-count-num {
-    font-size: 2.8rem;
-    font-weight: 700;
-    color: var(--saffron);
-    line-height: 1;
-}
-
-.mala-sub {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    margin-top: 6px;
-}
-
-.stats-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-top: 14px;
-}
-
-.stat-box {
-    background: var(--bg-primary);
-    border: 1px solid var(--border);
-    padding: 12px;
-    border-radius: 12px;
-    text-align: center;
-}
-
-.stat-val {
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: var(--saffron);
-}
-
-.stat-lbl {
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-}
-
-/* Bottom Navigation */
-nav {
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    max-width: 600px;
-    background: var(--bg-card);
-    border-top: 1px solid var(--border);
-    display: flex;
-    justify-content: space-around;
-    padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
-    z-index: 100;
-}
-
-.nav-item {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    cursor: pointer;
-    padding: 6px 16px;
-    border-radius: 10px;
-    font-weight: 600;
-}
-
-.nav-item.active {
-    color: var(--saffron);
-}
-
-.nav-icon {
-    font-size: 1.3rem;
-}
-
-/* Smaran Overlay Modal */
-.overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(18, 19, 26, 0.92);
-    z-index: 999;
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    text-align: center;
-    color: #f5ebe1;
-    animation: fadeIn 0.3s ease;
-}
-
-.overlay.show {
-    display: flex;
-}
-
-.overlay-om {
-    font-size: 4rem;
-    color: var(--saffron-light);
-    margin-bottom: 12px;
-    animation: pulse 2.5s infinite ease-in-out;
-}
-
-@keyframes pulse {
-
-    0%,
-    100% {
-        transform: scale(1);
-        opacity: 0.9;
-    }
-
-    50% {
-        transform: scale(1.08);
-        opacity: 1;
-    }
-}
-
-.overlay-mantra {
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: #ffffff;
-    margin-bottom: 10px;
-}
-
-.overlay-prompt {
-    font-size: 1rem;
-    color: #cbbba8;
-    max-width: 360px;
-    line-height: 1.5;
-    margin-bottom: 28px;
-}
-
-/* Floating Action Button (FAB) for Smartphone / Easy Addition */
-.fab-btn {
-    position: fixed;
-    bottom: calc(72px + env(safe-area-inset-bottom));
-    right: 18px;
-    width: 54px;
-    height: 54px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--saffron), #e8590c);
-    color: #ffffff;
-    border: 2px solid var(--gold);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.9rem;
-    line-height: 1;
-    box-shadow: 0 6px 20px rgba(217, 107, 39, 0.45);
-    cursor: pointer;
-    z-index: 95;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-    user-select: none;
-}
-
-.fab-btn:active {
-    transform: scale(0.92);
-    box-shadow: 0 2px 10px rgba(217, 107, 39, 0.3);
-}
-
-/* Quick Modal Card */
-.modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(4px);
-    z-index: 990;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-    animation: fadeIn 0.2s ease;
-}
-
-.modal-dialog {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 18px;
-    padding: 22px;
-    width: 100%;
-    max-width: 480px;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.3);
-    max-height: 90vh;
-    overflow-y: auto;
-    position: relative;
-    animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes slideUp {
-    from { opacity: 0; transform: translateY(20px) scale(0.97); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 14px;
-}
-
-.modal-title {
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: var(--saffron);
-}
-
-.modal-close-btn {
-    background: none;
-    border: none;
-    font-size: 1.3rem;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 4px 8px;
-    line-height: 1;
-}
-
-/* Subtab Navigation Pills (Nama Smaran Tab) */
+/* Subtab Navigation (in Library) */
 .subtab-bar {
     display: flex;
-    gap: 8px;
-    margin-bottom: 16px;
-    overflow-x: auto;
-    padding-bottom: 4px;
+    gap: 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 4px;
+    margin-bottom: 12px;
 }
 
 .subtab-btn {
     flex: 1;
-    padding: 9px 12px;
-    border-radius: 12px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    color: var(--text-secondary);
-    font-size: 0.85rem;
+    padding: 7px 10px;
+    border: none;
+    background: none;
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
     font-weight: 600;
+    color: var(--text-secondary);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    white-space: nowrap;
-    transition: all 0.2s ease;
+    gap: 5px;
+    transition: all 0.15s ease;
 }
 
 .subtab-btn.active {
     background: var(--saffron);
     color: #ffffff;
-    border-color: var(--saffron);
-    box-shadow: 0 3px 12px rgba(217, 107, 39, 0.25);
+    box-shadow: 0 2px 8px var(--saffron-glow);
 }
 
 /* Sahasranama Collection Card */
-.sahasranama-card {
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 16px;
-    margin-bottom: 14px;
+.collection-card {
     background: var(--bg-card);
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.sahasranama-card:hover {
-    border-color: var(--saffron-light);
-}
-
-.sahasranama-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
     margin-bottom: 10px;
 }
 
-.deity-badge {
-    font-size: 0.76rem;
-    padding: 4px 10px;
-    border-radius: 14px;
-    background: var(--bg-accent);
-    color: var(--saffron);
-    font-weight: 700;
-    border: 1px solid var(--border);
-}
-
-.collection-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 12px;
-}
-
-/* Name Items in List */
-.name-item-row {
+.collection-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.92rem;
+    cursor: pointer;
 }
 
-.name-item-row:last-child {
-    border-bottom: none;
-}
-
-.name-sanskrit {
-    font-size: 1.05rem;
+.collection-title {
+    font-size: 0.95rem;
     font-weight: 700;
     color: var(--saffron);
 }
 
-.name-meanings {
-    font-size: 0.82rem;
-    color: var(--text-secondary);
+.collection-meta {
+    font-size: 0.74rem;
+    color: var(--text-muted);
     margin-top: 2px;
 }
 
-/* Flashcard Review Component */
-.flashcard-box {
-    background: linear-gradient(145deg, var(--bg-card), var(--bg-accent));
-    border: 2px solid var(--gold);
-    border-radius: 20px;
-    padding: 28px 20px;
-    text-align: center;
-    box-shadow: 0 8px 30px rgba(200, 157, 84, 0.16);
-    margin: 16px 0;
-    min-height: 250px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.2s ease;
-    user-select: none;
-}
-
-.flashcard-box:active {
-    transform: scale(0.99);
-}
-
-.card-deity-pill {
-    font-size: 0.78rem;
-    padding: 4px 12px;
-    border-radius: 12px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    color: var(--text-secondary);
-    margin-bottom: 14px;
-    font-weight: 600;
-}
-
-.flashcard-title {
-    font-size: 2.2rem;
-    font-weight: 700;
-    color: var(--saffron);
-    letter-spacing: 0.5px;
-    margin-bottom: 12px;
-}
-
-.flashcard-meaning-box {
-    margin-top: 14px;
-    padding: 14px 16px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    width: 100%;
-    animation: fadeIn 0.2s ease;
-}
-
-.meaning-hi {
-    font-size: 0.98rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 6px;
-    line-height: 1.45;
-}
-
-.meaning-en {
-    font-size: 0.88rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-}
-
-.flashcard-controls {
-    display: flex;
-    gap: 10px;
-    margin-top: 14px;
-}
-
-/* MCQ Quiz Game */
+/* Quiz Game Card */
 .quiz-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 18px;
-    padding: 22px;
-    box-shadow: var(--shadow);
-    margin-bottom: 18px;
-}
-
-.quiz-question-box {
-    background: var(--bg-accent);
-    border-left: 4px solid var(--saffron);
+    border-radius: var(--radius-md);
     padding: 16px;
-    border-radius: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
 }
 
-.quiz-meaning-label {
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: var(--saffron);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 6px;
-}
-
-.quiz-meaning-text {
-    font-size: 1.12rem;
+.quiz-option-btn {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.92rem;
     font-weight: 600;
-    color: var(--text-primary);
-    line-height: 1.5;
-}
-
-.quiz-options-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-    margin-bottom: 18px;
-}
-
-@media (max-width: 480px) {
-    .quiz-options-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-.quiz-opt-btn {
-    padding: 18px 14px;
-    border-radius: 14px;
-    border: 2px solid var(--border);
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    font-size: 1.25rem;
-    font-weight: 700;
     cursor: pointer;
-    transition: all 0.15s ease;
+    margin-bottom: 8px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    min-height: 75px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: all 0.15s ease;
 }
 
-.quiz-opt-btn:hover {
+.quiz-option-btn:hover {
     border-color: var(--saffron);
-    background: var(--bg-accent);
 }
 
-.quiz-opt-btn.correct {
+.quiz-option-btn.correct {
     background: #e8f5e9;
     border-color: var(--success);
     color: var(--success);
-    box-shadow: 0 4px 16px rgba(46, 125, 50, 0.25);
 }
 
-[data-theme="dark"] .quiz-opt-btn.correct {
-    background: #1b3820;
-    border-color: #66bb6a;
-    color: #a5d6a7;
-}
-
-.quiz-opt-btn.wrong {
+.quiz-option-btn.wrong {
     background: #ffebee;
-    border-color: #d32f2f;
-    color: #d32f2f;
-}
-
-[data-theme="dark"] .quiz-opt-btn.wrong {
-    background: #3b1919;
-    border-color: #ef5350;
-    color: #ef9a9a;
+    border-color: var(--danger);
+    color: var(--danger);
 }
 
 .score-badge {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
+    gap: 4px;
+    padding: 4px 10px;
     background: var(--bg-accent);
     border: 1px solid var(--border);
-    border-radius: 20px;
-    font-size: 0.84rem;
+    border-radius: var(--radius-full);
+    font-size: 0.74rem;
     font-weight: 700;
     color: var(--saffron);
 }
@@ -855,22 +822,22 @@ nav {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 14px;
-    background: var(--bg-primary);
+    padding: 8px 12px;
+    background: var(--bg-accent-soft);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    margin-bottom: 8px;
-    font-size: 0.9rem;
+    border-radius: var(--radius-sm);
+    margin-bottom: 6px;
+    font-size: 0.84rem;
     font-weight: 500;
 }
 
 .icon-action-btn {
     background: none;
     border: none;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     cursor: pointer;
-    padding: 4px 6px;
-    font-size: 0.95rem;
+    padding: 4px;
+    font-size: 0.88rem;
     transition: color 0.15s;
 }
 
@@ -879,232 +846,229 @@ nav {
 }
 
 .icon-action-btn.delete:hover {
-    color: #d32f2f;
+    color: var(--danger);
 }
 
-/* FULLSCREEN MINIMAL SMARTPHONE FOCUS MODE FOR NAAM JAPA & REVIEW */
-.fullscreen-focus-view {
-    position: fixed;
-    inset: 0;
-    width: 100vw;
-    height: 100vh;
-    height: 100dvh;
-    z-index: 1000;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: max(12px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom));
-    animation: fadeIn 0.2s ease;
-    overflow: hidden;
-    user-select: none;
-}
-
-.fs-top-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border);
-}
-
-.fs-exit-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 18px;
-    padding: 6px 12px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    cursor: pointer;
-}
-
-.fs-exit-btn:hover {
-    color: var(--saffron);
-    border-color: var(--saffron);
-}
-
-.fs-stotra-pill {
-    font-size: 0.78rem;
-    font-weight: 700;
-    padding: 5px 12px;
-    background: var(--bg-accent);
-    color: var(--saffron);
-    border-radius: 20px;
-    border: 1px solid var(--border);
-    max-width: 180px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.fs-badge {
-    font-size: 0.76rem;
-    font-weight: 700;
-    color: var(--text-secondary);
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    padding: 4px 10px;
-    border-radius: 14px;
-}
-
-/* Center Sacred Name Area in Fullscreen */
-.fs-center-hero {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 10px 8px;
-    cursor: pointer;
-}
-
-.fs-name-text {
-    font-size: clamp(2.3rem, 10vw, 3.8rem);
-    font-weight: 700;
-    color: var(--saffron);
-    letter-spacing: 0.5px;
-    line-height: 1.25;
-    margin-bottom: 14px;
-    text-shadow: 0 4px 20px rgba(217, 107, 39, 0.18);
-    transition: transform 0.1s ease;
-}
-
-.fs-name-text:active {
-    transform: scale(0.97);
-}
-
-.fs-meaning-box {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 14px 18px;
-    max-width: 440px;
-    width: 100%;
-    box-shadow: var(--shadow);
-    animation: fadeIn 0.15s ease;
-}
-
-.fs-tap-hint {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    margin-top: 10px;
-    opacity: 0.7;
-}
-
-/* Bottom Controls in Fullscreen */
-.fs-bottom-bar {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-}
-
-.fs-controls-row {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    width: 100%;
-}
-
-.fs-chant-btn {
-    flex: 1;
-    max-width: 240px;
-    padding: 15px 20px;
-    border-radius: 28px;
-    background: linear-gradient(135deg, var(--saffron), #e8590c);
-    color: #ffffff;
-    font-size: 1.05rem;
-    font-weight: 700;
-    border: 2px solid var(--gold);
-    cursor: pointer;
-    box-shadow: 0 6px 20px rgba(217, 107, 39, 0.35);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    user-select: none;
-    transition: transform 0.08s ease;
-}
-
-.fs-chant-btn:active {
-    transform: scale(0.94);
-}
-
-.fs-nav-arrow-btn {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    color: var(--text-primary);
-    font-size: 1.15rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: var(--shadow);
-    transition: transform 0.1s ease;
-}
-
-.fs-nav-arrow-btn:active {
-    transform: scale(0.92);
-}
-
-/* PWA Install Banner & Pills */
-.install-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 5px 12px;
-    background: linear-gradient(135deg, var(--saffron), #d46320);
-    color: #ffffff;
-    border: 1px solid var(--gold);
-    border-radius: 20px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    cursor: pointer;
-    box-shadow: 0 3px 10px rgba(217, 107, 39, 0.3);
-    user-select: none;
-    animation: pulse 3s infinite ease-in-out;
-}
-
+/* PWA Highlight Card & Step Rows */
 .install-card-highlight {
     background: linear-gradient(135deg, var(--bg-accent), var(--bg-card));
     border: 2px solid var(--saffron);
 }
 
-/* iOS Install Step Box */
 .ios-step-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
+    gap: 10px;
+    padding: 8px 10px;
     background: var(--bg-primary);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    margin-bottom: 8px;
-    font-size: 0.88rem;
+    border-radius: var(--radius-sm);
+    margin-bottom: 6px;
+    font-size: 0.82rem;
 }
 
 .ios-step-num {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-full);
     background: var(--saffron);
     color: #fff;
     font-weight: 700;
-    font-size: 0.82rem;
+    font-size: 0.74rem;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+}
+
+/* ==========================================================================
+   FLOATING BOTTOM NAVIGATION DOCK
+   ========================================================================== */
+nav.bottom-dock {
+    position: fixed;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 24px);
+    max-width: 500px;
+    height: var(--dock-height);
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 4px 8px;
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+    transition: all 0.25s ease;
+}
+
+[data-theme="dark"] nav.bottom-dock {
+    background: rgba(24, 25, 32, 0.88);
+}
+
+/* Hide dock when in immersive mode */
+.app-wrapper.immersive-mode nav.bottom-dock {
+    transform: translate(-50%, 150%);
+    pointer-events: none;
+    opacity: 0;
+}
+
+.dock-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 6px 0;
+    border-radius: var(--radius-full);
+    transition: all 0.15s ease;
+}
+
+.dock-item .dock-icon {
+    font-size: 1.15rem;
+    transition: transform 0.15s ease;
+}
+
+.dock-item.active {
+    color: var(--saffron);
+    font-weight: 700;
+}
+
+.dock-item.active .dock-icon {
+    transform: scale(1.18);
+}
+
+/* ==========================================================================
+   MODALS & OVERLAYS
+   ========================================================================== */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 200;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    animation: fadeIn 0.15s ease;
+}
+
+@media (min-width: 600px) {
+    .modal-backdrop {
+        align-items: center;
+    }
+}
+
+.modal-dialog {
+    background: var(--bg-card);
+    width: 100%;
+    max-width: 520px;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 20px 18px max(20px, env(safe-area-inset-bottom));
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+    animation: slideUpModal 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+@media (min-width: 600px) {
+    .modal-dialog {
+        border-radius: var(--radius-lg);
+    }
+}
+
+@keyframes slideUpModal {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.modal-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.modal-close-btn {
+    background: var(--bg-accent);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    border-radius: var(--radius-full);
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+/* 1-Breath Smaran Overlay */
+.smaran-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(43, 34, 26, 0.94);
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+    color: #ffffff;
+    animation: fadeIn 0.2s ease;
+}
+
+[data-theme="dark"] .smaran-overlay {
+    background: rgba(10, 11, 16, 0.96);
+}
+
+.overlay-om {
+    font-size: 4rem;
+    margin-bottom: 12px;
+    animation: pulseOm 3s infinite ease-in-out;
+}
+
+@keyframes pulseOm {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(217, 107, 39, 0.4)); }
+    50% { transform: scale(1.08); filter: drop-shadow(0 0 24px rgba(217, 107, 39, 0.8)); }
+}
+
+.overlay-mantra {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--gold);
+    margin-bottom: 12px;
+    line-height: 1.35;
+}
+
+.overlay-prompt {
+    font-size: 0.95rem;
+    color: #e2d7cd;
+    max-width: 380px;
+    margin-bottom: 24px;
+    line-height: 1.5;
 }
