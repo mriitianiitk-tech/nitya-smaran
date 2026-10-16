@@ -1,59 +1,76 @@
-// Nitya Smaran Service Worker for Offline & PWA Installability
-const CACHE_NAME = "nitya-smaran-v1";
-const ASSETS_TO_CACHE = [
+// Nitya Smaran Service Worker — Network-First for HTML, Stale-While-Revalidate for Assets
+const CACHE_NAME = "nitya-smaran-v3";
+
+const STATIC_ASSETS = [
   "/",
-  "/index.html",
   "/manifest.json",
   "/icon.svg",
   "/icon-192.png",
   "/icon-512.png"
 ];
 
+// Install: Cache core assets and immediately activate
 self.addEventListener("install", (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+      return cache.addAll(STATIC_ASSETS);
+    })
   );
 });
 
+// Activate: Immediately purge ALL older caches and claim clients
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
       );
     }).then(() => self.clients.claim())
   );
 });
 
+// Fetch: Network-First for HTML/Navigation, Cache-First for versioned assets
 self.addEventListener("fetch", (event) => {
-  // Network first for API, cache first with network fallback for assets
-  if (event.request.url.includes("/api/")) {
+  const { request } = event;
+
+  // 1. API calls: Always pure Network, fallback to nothing
+  if (request.url.includes("/api/")) {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
+      fetch(request).catch(() => new Response(JSON.stringify({ error: "offline" }), {
+        headers: { "Content-Type": "application/json" }
+      }))
     );
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Fetch fresh copy in background
-        fetch(event.request).then((networkResponse) => {
+  // 2. HTML Navigation / Main Document: ALWAYS Network-First
+  // This guarantees fresh deploys are seen immediately on refresh
+  if (request.mode === "navigate" || request.headers.get("accept")?.includes("text/html")) {
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }
-        }).catch(() => {});
-        return cachedResponse;
-      }
-      return fetch(event.request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200 && event.request.method === "GET") {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          return networkResponse;
+        })
+        .catch(() => caches.match(request).then((res) => res || caches.match("/")))
+    );
+    return;
+  }
+
+  // 3. Static Assets: Network-first with cache fallback
+  event.respondWith(
+    fetch(request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && request.method === "GET") {
+          const copy = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
         }
         return networkResponse;
-      });
-    }).catch(() => caches.match("/"))
+      })
+      .catch(() => caches.match(request))
   );
 });
