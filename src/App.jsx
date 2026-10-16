@@ -170,8 +170,8 @@ export default function App() {
                 return {
                     ...DEFAULT_STATE,
                     ...parsed,
-                    bhavaOptions: parsed.bhavaOptions?.length ? parsed.bhavaOptions : DEFAULT_BHAVA_OPTIONS,
-                    sahasranamas: parsed.sahasranamas?.length ? parsed.sahasranamas : INITIAL_SAHASRANAMAS,
+                    bhavaOptions: Array.isArray(parsed.bhavaOptions) && parsed.bhavaOptions.length > 0 ? parsed.bhavaOptions : DEFAULT_BHAVA_OPTIONS,
+                    sahasranamas: Array.isArray(parsed.sahasranamas) ? parsed.sahasranamas : INITIAL_SAHASRANAMAS,
                     deities: Array.isArray(parsed.deities) && parsed.deities.length > 0 ? parsed.deities : PRESET_DEITIES,
                     favoriteKeys: Array.isArray(parsed.favoriteKeys) ? parsed.favoriteKeys : []
                 };
@@ -242,6 +242,9 @@ export default function App() {
     const [uploadTargetCollectionId, setUploadTargetCollectionId] = useState("");
     const [uploadRawText, setUploadRawText] = useState("");
     const [uploadStatusMsg, setUploadStatusMsg] = useState("");
+
+    // Delete Stotra Confirmation Modal
+    const [stotraToDelete, setStotraToDelete] = useState(null);
 
     // Review Subtab State (Two-Screen Flashcard Deck)
     const [flashcardsActive, setFlashcardsActive] = useState(false);
@@ -411,6 +414,7 @@ export default function App() {
 
         if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
         syncTimeoutRef.current = setTimeout(() => {
+            syncTimeoutRef.current = null;
             pushToCloud(state);
         }, 1200);
     }, [state]);
@@ -418,6 +422,8 @@ export default function App() {
     // Pull from Cloudflare D1
     const pullFromCloud = useCallback(async (keyToUse) => {
         if (!navigator.onLine) return;
+        // Do not pull and overwrite if there are pending unpushed local changes
+        if (syncTimeoutRef.current) return;
         try {
             setSyncStatus("Syncing...");
             const res = await fetch(`/api/sync?key=${encodeURIComponent(keyToUse)}`);
@@ -426,15 +432,22 @@ export default function App() {
 
             if (data.state) {
                 const s = data.state;
-                setState(prev => ({
-                    ...prev,
-                    ...s,
-                    todayMalas: Math.max(prev.todayMalas, s.todayMalas || 0),
-                    totalJapa: Math.max(prev.totalJapa, s.totalJapa || 0),
-                    bhavaOptions: s.bhavaOptions?.length ? s.bhavaOptions : prev.bhavaOptions,
-                    sahasranamas: s.sahasranamas?.length ? s.sahasranamas : prev.sahasranamas,
-                    favoriteKeys: Array.isArray(s.favoriteKeys) ? s.favoriteKeys : (prev.favoriteKeys || [])
-                }));
+                setState(prev => {
+                    // Do not overwrite if local state was modified after cloud timestamp
+                    if (s.lastModified && prev.lastModified && s.lastModified < prev.lastModified) {
+                        return prev;
+                    }
+                    return {
+                        ...prev,
+                        ...s,
+                        todayMalas: Math.max(prev.todayMalas, s.todayMalas || 0),
+                        totalJapa: Math.max(prev.totalJapa, s.totalJapa || 0),
+                        bhavaOptions: Array.isArray(s.bhavaOptions) && s.bhavaOptions.length > 0 ? s.bhavaOptions : prev.bhavaOptions,
+                        sahasranamas: Array.isArray(s.sahasranamas) ? s.sahasranamas : prev.sahasranamas,
+                        deities: Array.isArray(s.deities) && s.deities.length > 0 ? s.deities : prev.deities,
+                        favoriteKeys: Array.isArray(s.favoriteKeys) ? s.favoriteKeys : (prev.favoriteKeys || [])
+                    };
+                });
             }
             setSyncStatus("☁️ Synced");
         } catch {
@@ -836,11 +849,53 @@ export default function App() {
     };
 
     const handleDeleteCollection = (id) => {
-        if (!confirm("Are you sure you want to remove this Sahasranama / Stotra?")) return;
-        setState(prev => ({
-            ...prev,
-            sahasranamas: prev.sahasranamas.filter(s => s.id !== id)
-        }));
+        const col = state.sahasranamas.find(s => s.id === id);
+        if (!col) {
+            setStotraToDelete(null);
+            return;
+        }
+
+        // 1. Reset source if this collection was active in full-screen chanting
+        if (fsSelectedSource === `col:${id}`) {
+            setFsSelectedSource("all");
+            setFsNameIndex(0);
+        }
+        if (quizSourceFilter === `col:${id}`) {
+            setQuizSourceFilter("all");
+        }
+
+        // 2. Close focused collection screen if deleting from within it
+        if (selectedCollectionId === id) {
+            setSelectedCollectionId(null);
+            setStotraSearchQuery("");
+        }
+        if (targetCollectionId === id) setTargetCollectionId("");
+        if (uploadTargetCollectionId === id) setUploadTargetCollectionId("");
+
+        // 3. Filter out the deleted collection
+        const updatedCollections = state.sahasranamas.filter(s => s.id !== id);
+
+        // 4. Clean up favorite keys from this collection
+        const updatedFavorites = (state.favoriteKeys || []).filter(k => !k.startsWith(`${id}:`));
+
+        const nextState = {
+            ...state,
+            sahasranamas: updatedCollections,
+            favoriteKeys: updatedFavorites,
+            lastModified: Date.now()
+        };
+
+        setState(nextState);
+        localStorage.setItem("nityaSmaranD1State", JSON.stringify(nextState));
+
+        // 5. Immediately clear pending debounce and sync directly to cloud
+        if (syncTimeoutRef.current) {
+            clearTimeout(syncTimeoutRef.current);
+            syncTimeoutRef.current = null;
+        }
+        pushToCloud(nextState);
+
+        setStotraToDelete(null);
     };
 
     const handleAddManualName = () => {
@@ -1856,13 +1911,27 @@ export default function App() {
                                                 <div
                                                     className="collection-header"
                                                     onClick={() => setSelectedCollectionId(col.id)}
+                                                    style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}
                                                 >
-                                                    <div>
+                                                    <div style={{ flex: 1, paddingRight: "8px" }}>
                                                         <div className="collection-title">{col.title}</div>
                                                         <div className="collection-meta">
                                                             Deity: {col.deity} • {col.names.length} Names
                                                         </div>
                                                     </div>
+                                                    <button
+                                                        type="button"
+                                                        className="icon-action-btn delete"
+                                                        style={{ fontSize: "1.05rem", padding: "6px 8px", borderRadius: "6px" }}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setStotraToDelete(col);
+                                                        }}
+                                                        title={`Delete ${col.title}`}
+                                                        aria-label={`Delete ${col.title}`}
+                                                    >
+                                                        🗑️
+                                                    </button>
                                                 </div>
                                                 <div style={{ display: "flex", gap: "8px", marginTop: "12px", borderTop: "1px solid var(--border-light)", paddingTop: "10px" }}>
                                                     <button
@@ -1949,14 +2018,13 @@ export default function App() {
                                                         📥 Import
                                                     </button>
                                                     <button
-                                                        className="icon-action-btn delete"
-                                                        onClick={() => {
-                                                            handleDeleteCollection(col.id);
-                                                            setSelectedCollectionId(null);
-                                                        }}
-                                                        title="Delete Collection"
+                                                        type="button"
+                                                        className="btn btn-secondary btn-small"
+                                                        style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
+                                                        onClick={() => setStotraToDelete(col)}
+                                                        title="Delete this Stotra"
                                                     >
-                                                        🗑️
+                                                        🗑️ Delete Stotra
                                                     </button>
                                                 </div>
 
@@ -2917,8 +2985,46 @@ export default function App() {
             </nav>
 
             {/* ========================================================
-                MODALS: ADD COLLECTION (WITH DEITY DROPDOWN), ADD NAME, UPLOAD
+                MODALS: DELETE CONFIRMATION, ADD COLLECTION, ADD NAME, UPLOAD
                ======================================================== */}
+
+            {/* Modal: Confirm Delete Sahasranama / Stotra */}
+            {stotraToDelete && (
+                <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setStotraToDelete(null)}>
+                    <div className="modal-dialog" style={{ maxWidth: "420px" }}>
+                        <div className="modal-header">
+                            <div className="modal-title" style={{ color: "var(--danger)", display: "flex", alignItems: "center", gap: "6px" }}>
+                                <span>🗑️</span> Delete Sahasranama / Stotra
+                            </div>
+                            <button className="modal-close-btn" onClick={() => setStotraToDelete(null)}>✕</button>
+                        </div>
+                        <div style={{ fontSize: "0.95rem", color: "var(--text-primary)", marginBottom: "8px", lineHeight: "1.5" }}>
+                            Are you sure you want to delete <strong>"{stotraToDelete.title}"</strong>?
+                        </div>
+                        <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginBottom: "18px", lineHeight: "1.4" }}>
+                            This will remove all {stotraToDelete.names?.length || 0} names from your library and chanting lists.
+                        </div>
+                        <div style={{ display: "flex", gap: "10px" }}>
+                            <button
+                                type="button"
+                                className="btn btn-secondary btn-small"
+                                style={{ flex: 1 }}
+                                onClick={() => setStotraToDelete(null)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-small"
+                                style={{ flex: 1, background: "var(--danger)", borderColor: "var(--danger)", color: "#fff", fontWeight: 700 }}
+                                onClick={() => handleDeleteCollection(stotraToDelete.id)}
+                            >
+                                🗑️ Yes, Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modal: Add Collection with Deity Dropdown & Add New Option */}
             {showAddCollectionModal && (
