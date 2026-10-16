@@ -197,7 +197,9 @@ export default function App() {
     const [fsShowMeaning, setFsShowMeaning] = useState(false);
     const [fsRandomMode, setFsRandomMode] = useState(false);
 
-    // Karma Yoga State
+    // Karma Yoga State (Dedicated Two-Screen Flow)
+    const [karmaSubTab, setKarmaSubTab] = useState("sankalpa"); // 'sankalpa' | 'logs'
+    const [selectedKarmaDate, setSelectedKarmaDate] = useState(() => new Date().toISOString().slice(0, 10));
     const [karmaInput, setKarmaInput] = useState("");
     const [selectedBhava, setSelectedBhava] = useState(() => state.bhavaOptions?.[0] || DEFAULT_BHAVA_OPTIONS[0]);
 
@@ -211,9 +213,14 @@ export default function App() {
     const [editingBhavaIndex, setEditingBhavaIndex] = useState(null);
     const [editingBhavaValue, setEditingBhavaValue] = useState("");
 
-    // Library Subtabs
-    const [librarySubTab, setLibrarySubTab] = useState("collections"); // 'collections' | 'review' | 'quiz'
-    const [expandedCollectionId, setExpandedCollectionId] = useState(null);
+    // Library Subtabs & Screen Segregation States
+    const [librarySubTab, setLibrarySubTab] = useState("collections"); // 'search' | 'collections' | 'favorites' | 'review' | 'quiz'
+    const [selectedCollectionId, setSelectedCollectionId] = useState(null);
+    const [stotraSearchQuery, setStotraSearchQuery] = useState("");
+
+    // Name Search Functionality
+    const [nameSearchQuery, setNameSearchQuery] = useState("");
+    const [nameSearchDeityFilter, setNameSearchDeityFilter] = useState("all");
 
     // Add Collection Modal with existing/new Deity selection
     const [showAddCollectionModal, setShowAddCollectionModal] = useState(false);
@@ -234,19 +241,24 @@ export default function App() {
     const [uploadRawText, setUploadRawText] = useState("");
     const [uploadStatusMsg, setUploadStatusMsg] = useState("");
 
-    // Review Subtab State
+    // Review Subtab State (Two-Screen Flashcard Deck)
+    const [flashcardsActive, setFlashcardsActive] = useState(false);
     const [reviewDeityFilter, setReviewDeityFilter] = useState("all");
     const [reviewMode, setReviewMode] = useState("sequential");
     const [reviewIndex, setReviewIndex] = useState(0);
     const [showReviewMeaning, setShowReviewMeaning] = useState(false);
 
-    // Quiz Game State (supports 'all', 'deity:...', or 'col:...')
+    // Quiz Game State (Two-Screen MCQ Game)
+    const [quizActive, setQuizActive] = useState(false);
     const [quizSourceFilter, setQuizSourceFilter] = useState("all");
     const [quizQuestion, setQuizQuestion] = useState(null);
     const [quizSelectedOption, setQuizSelectedOption] = useState(null);
     const [quizAnswerChecked, setQuizAnswerChecked] = useState(false);
     const [quizScore, setQuizScore] = useState(0);
     const [quizStreak, setQuizStreak] = useState(0);
+
+    // Settings Screen Segregation State
+    const [settingsActiveSection, setSettingsActiveSection] = useState(null);
 
     // PWA Install Prompt & Standalone Mode State
     const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -634,6 +646,9 @@ export default function App() {
             ...prev,
             karmas: [newItem, ...prev.karmas]
         }));
+
+        setKarmaSubTab("logs");
+        setSelectedKarmaDate(now.toISOString().slice(0, 10));
     };
 
     const offerKarma = (id) => {
@@ -993,21 +1008,130 @@ export default function App() {
         }
     };
 
+    // Karma Yoga Date & Offering Calculations
+    const todayDateStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+    const karmaDates = useMemo(() => {
+        const dateSet = new Set();
+        dateSet.add(todayDateStr);
+        const yDate = new Date();
+        yDate.setDate(yDate.getDate() - 1);
+        dateSet.add(yDate.toISOString().slice(0, 10));
+
+        state.karmas.forEach(k => {
+            const d = k.date || (k.updatedAt ? new Date(k.updatedAt).toISOString().slice(0, 10) : todayDateStr);
+            if (d) dateSet.add(d);
+        });
+        return Array.from(dateSet).sort((a, b) => b.localeCompare(a));
+    }, [state.karmas, todayDateStr]);
+
+    const filteredKarmasForSelectedDate = useMemo(() => {
+        return state.karmas.filter(k => {
+            const d = k.date || (k.updatedAt ? new Date(k.updatedAt).toISOString().slice(0, 10) : todayDateStr);
+            return d === selectedKarmaDate;
+        });
+    }, [state.karmas, selectedKarmaDate, todayDateStr]);
+
+    const selectedDateOfferedCount = useMemo(() => {
+        return filteredKarmasForSelectedDate.filter(k => k.offered).length;
+    }, [filteredKarmasForSelectedDate]);
+
+    const todayKarmas = useMemo(() => {
+        return state.karmas.filter(k => {
+            const d = k.date || (k.updatedAt ? new Date(k.updatedAt).toISOString().slice(0, 10) : todayDateStr);
+            return d === todayDateStr;
+        });
+    }, [state.karmas, todayDateStr]);
+
+    const todayOfferedCount = useMemo(() => {
+        return todayKarmas.filter(k => k.offered).length;
+    }, [todayKarmas]);
+
+    const formatKarmaDatePill = (dateStr) => {
+        const today = new Date().toISOString().slice(0, 10);
+        const yDate = new Date();
+        yDate.setDate(yDate.getDate() - 1);
+        const yesterday = yDate.toISOString().slice(0, 10);
+
+        const parts = dateStr.split("-");
+        const dObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        const monthDay = dObj.toLocaleDateString([], { month: "short", day: "numeric" });
+        const weekday = dObj.toLocaleDateString([], { weekday: "short" });
+
+        if (dateStr === today) {
+            return { label: "Today", sub: monthDay, isToday: true };
+        } else if (dateStr === yesterday) {
+            return { label: "Yesterday", sub: monthDay, isToday: false };
+        } else {
+            return { label: weekday, sub: monthDay, isToday: false };
+        }
+    };
+
+    // Global Divine Name Search Memo
+    const searchResults = useMemo(() => {
+        const q = nameSearchQuery.trim().toLowerCase();
+        if (!q) return [];
+        const results = [];
+        state.sahasranamas.forEach(col => {
+            if (nameSearchDeityFilter !== "all" && col.deity !== nameSearchDeityFilter) {
+                return;
+            }
+            col.names.forEach((item, idx) => {
+                const matchName = item.name?.toLowerCase().includes(q);
+                const matchHi = item.meaningHi?.toLowerCase().includes(q);
+                const matchEn = item.meaningEn?.toLowerCase().includes(q);
+                const matchCol = col.title?.toLowerCase().includes(q);
+                if (matchName || matchHi || matchEn || matchCol) {
+                    results.push({
+                        ...item,
+                        collectionId: col.id,
+                        collectionTitle: col.title,
+                        deity: col.deity,
+                        nameIndex: idx
+                    });
+                }
+            });
+        });
+        return results;
+    }, [nameSearchQuery, nameSearchDeityFilter, state.sahasranamas]);
+
     const offeredCount = state.karmas.filter(k => k.offered).length;
 
     return (
         <div className={`app-wrapper ${ultraMinimal ? "ultra-minimal" : ""} ${isImmersiveMode ? "immersive-mode" : ""}`}>
-            {/* Minimal App Header */}
+            {/* Subtle Floating Exit Button for Ultra-Minimal Mode */}
+            {ultraMinimal && (
+                <button
+                    className="minimal-exit-btn"
+                    onClick={toggleUltraMinimal}
+                    title="Exit Ultra-Minimal Mode"
+                    aria-label="Exit Ultra-Minimal Mode"
+                >
+                    <span>✨</span>
+                    <span>Standard UI</span>
+                </button>
+            )}
+
+            {/* App Header (Completely hidden in Ultra-Minimal mode) */}
             <header className="app-header">
                 <div className="deity-title">
                     <span>{state.deityName}</span>
                 </div>
 
                 <div className="header-pills-row">
+                    <div
+                        className="nudge-pill search-pill"
+                        onClick={() => { setActiveTab("library"); setLibrarySubTab("search"); }}
+                        title="Search Divine Names"
+                    >
+                        <span>🔍</span>
+                        <span>Search</span>
+                    </div>
+
                     {!isStandalone && (
                         <div className="install-pill" onClick={handleInstallClick} title="Install as Web App">
                             <span>📲</span>
-                            <span>Install App</span>
+                            <span>Install</span>
                         </div>
                     )}
                     <div
@@ -1208,107 +1332,218 @@ export default function App() {
                 )}
 
                 {/* ========================================================
-                    TAB 2: KARMA YOGA (SCROLLABLE)
+                    TAB 2: KARMA YOGA (DEDICATED TWO-SCREEN ARCHITECTURE)
                    ======================================================== */}
                 {activeTab === "karma" && (
                     <section className="tab-pane active scrollable">
-                        {/* Gita Shloka (hidden in ultra-minimal mode) */}
-                        <div className="shloka-box standard-only">
-                            <div className="shloka-sanskrit">
-                                यत्करोषि यदश्नासि यज्जुहोषि ददासि यत् । यत्तपस्यसि कौन्तेय तत्कुरुष्व मदर्पणम् ॥
-                            </div>
-                            <div className="shloka-meaning">
-                                Whatever you do, whatever you offer or give away—dedicate that unto Me. (Gita 9.27)
-                            </div>
-                        </div>
-
-                        {/* Dedicated Action Input Card */}
-                        <div className="card">
-                            <div className="card-title">{t.lblNewSankalpa}</div>
-                            <div className="card-desc standard-only">{t.descNewSankalpa}</div>
-
-                            <div className="input-group">
-                                <input
-                                    type="text"
-                                    value={karmaInput}
-                                    onChange={e => setKarmaInput(e.target.value)}
-                                    onKeyDown={e => e.key === "Enter" && addKarma()}
-                                    placeholder="Action name (e.g., Office task, Cooking, Service... Optional)"
-                                />
-                            </div>
-
-                            <label style={{ marginBottom: "5px" }}>{t.lblSelectBhava}</label>
-                            <div className="bhava-chips">
-                                {state.bhavaOptions.map(b => (
-                                    <button
-                                        key={b}
-                                        type="button"
-                                        className={`bhava-chip ${selectedBhava === b ? "selected" : ""}`}
-                                        onClick={() => setSelectedBhava(b)}
-                                    >
-                                        {b}
-                                    </button>
-                                ))}
-                            </div>
-
-                            <button className="btn" onClick={() => addKarma()}>
-                                🙏 {t.btnBeginKarma}
+                        {/* Two-Screen View Switcher Pills */}
+                        <div className="karma-view-switch">
+                            <button
+                                className={`karma-tab-pill ${karmaSubTab === "sankalpa" ? "active" : ""}`}
+                                onClick={() => setKarmaSubTab("sankalpa")}
+                            >
+                                <span>✍️ New Sankalpa</span>
+                            </button>
+                            <button
+                                className={`karma-tab-pill ${karmaSubTab === "logs" ? "active" : ""}`}
+                                onClick={() => setKarmaSubTab("logs")}
+                            >
+                                <span>📜 Offerings & History</span>
+                                <span className="karma-count-badge">
+                                    {todayOfferedCount}/{todayKarmas.length}
+                                </span>
                             </button>
                         </div>
 
-                        {/* Today's Offerings List */}
-                        <div className="card">
-                            <div className="card-title">
-                                <span>{t.lblTodaysYajna}</span>
-                                <span style={{ fontSize: "0.8rem", color: "var(--saffron)", fontWeight: 700 }}>
-                                    {offeredCount} / {state.karmas.length} Offered
-                                </span>
-                            </div>
-                            <div className="card-desc standard-only">{t.descTodaysYajna}</div>
-
-                            {state.karmas.length === 0 ? (
-                                <div style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "0.82rem" }}>
-                                    No tasks logged today yet. Dedicate your current action above to begin.
-                                </div>
-                            ) : (
-                                state.karmas.map(item => (
-                                    <div key={item.id} className={`karma-item ${item.offered ? "offered" : ""}`}>
-                                        <div className="karma-top">
-                                            <div className="karma-title">{item.title}</div>
-                                            <span className="karma-bhava-tag">{item.bhava}</span>
-                                        </div>
-                                        <div className="karma-bottom">
-                                            <span>🕒 {item.time}</span>
-                                            {item.offered ? (
-                                                <span style={{ color: "var(--success)", fontWeight: 700 }}>
-                                                    ✓ {state.arpanamWord}
-                                                </span>
-                                            ) : (
-                                                <button
-                                                    className="btn btn-secondary btn-small"
-                                                    onClick={() => offerKarma(item.id)}
-                                                >
-                                                    🙏 Offer ({state.arpanamWord})
-                                                </button>
-                                            )}
-                                        </div>
+                        {/* ==============================================
+                            SCREEN A: SANKALPA (CLEAN & MINIMAL UI)
+                           ============================================== */}
+                        {karmaSubTab === "sankalpa" && (
+                            <div className="karma-screen-sankalpa">
+                                {/* Gita Shloka (hidden in ultra-minimal mode) */}
+                                <div className="shloka-box standard-only">
+                                    <div className="shloka-sanskrit">
+                                        यत्करोषि यदश्नासि यज्जुहोषि ददासि यत् । यत्तपस्यसि कौन्तेय तत्कुरुष्व मदर्पणम् ॥
                                     </div>
-                                ))
-                            )}
-                        </div>
+                                    <div className="shloka-meaning">
+                                        Whatever you do, whatever you offer or give away—dedicate that unto Me. (Gita 9.27)
+                                    </div>
+                                </div>
+
+                                {/* Dedicated Action Input Card */}
+                                <div className="card">
+                                    <div className="card-title">
+                                        <span>✍️ Take Karma Sankalpa</span>
+                                    </div>
+                                    <div className="card-desc standard-only">
+                                        Dedicate your upcoming activity to Bhagwan before beginning. Text is optional—even holding the sacred attitude (Bhava) consecrates your action.
+                                    </div>
+
+                                    <div className="input-group">
+                                        <label>Action / Activity Name:</label>
+                                        <input
+                                            type="text"
+                                            value={karmaInput}
+                                            onChange={e => setKarmaInput(e.target.value)}
+                                            onKeyDown={e => e.key === "Enter" && addKarma()}
+                                            placeholder="e.g., Office task, Cooking, Service, Study... (Optional)"
+                                        />
+                                    </div>
+
+                                    <label>Select Dedicated Attitude (भाव):</label>
+                                    <div className="bhava-chips">
+                                        {state.bhavaOptions.map(b => (
+                                            <button
+                                                key={b}
+                                                type="button"
+                                                className={`bhava-chip ${selectedBhava === b ? "selected" : ""}`}
+                                                onClick={() => setSelectedBhava(b)}
+                                            >
+                                                {b}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <button className="btn" onClick={() => addKarma()}>
+                                        🙏 {t.btnBeginKarma}
+                                    </button>
+
+                                    <button
+                                        className="btn btn-secondary"
+                                        style={{ marginTop: "10px" }}
+                                        onClick={() => setKarmaSubTab("logs")}
+                                    >
+                                        📜 View Today's Offerings & History ({todayOfferedCount}/{todayKarmas.length}) ➔
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ==============================================
+                            SCREEN B: DEDICATED ACTION & DATEWISE LOGS
+                           ============================================== */}
+                        {karmaSubTab === "logs" && (
+                            <div className="karma-screen-logs">
+                                {/* Top Controls & Quick Sankalpa Button */}
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                                    <button
+                                        className="btn btn-small"
+                                        onClick={() => setKarmaSubTab("sankalpa")}
+                                    >
+                                        ✍️ + New Sankalpa
+                                    </button>
+                                    <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--saffron)" }}>
+                                        {selectedDateOfferedCount} / {filteredKarmasForSelectedDate.length} Offered
+                                    </span>
+                                </div>
+
+                                {/* Horizontal Datewise Scroller */}
+                                <div className="karma-date-scroller-wrap">
+                                    <div className="karma-date-scroller-header">
+                                        <span>📅 Select Date Log:</span>
+                                        <span>{karmaDates.length} days recorded</span>
+                                    </div>
+                                    <div className="karma-date-scroller">
+                                        {karmaDates.map(dateStr => {
+                                            const pill = formatKarmaDatePill(dateStr);
+                                            const isSelected = selectedKarmaDate === dateStr;
+                                            const dayCount = state.karmas.filter(k => {
+                                                const d = k.date || (k.updatedAt ? new Date(k.updatedAt).toISOString().slice(0, 10) : todayDateStr);
+                                                return d === dateStr;
+                                            }).length;
+
+                                            return (
+                                                <div
+                                                    key={dateStr}
+                                                    className={`karma-date-pill ${isSelected ? "active" : ""}`}
+                                                    onClick={() => setSelectedKarmaDate(dateStr)}
+                                                >
+                                                    {dayCount > 0 && <span className="karma-date-has-items" title={`${dayCount} tasks logged`} />}
+                                                    <span className="karma-date-pill-label">{pill.label}</span>
+                                                    <span className="karma-date-pill-sub">{pill.sub}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Offerings List for Selected Date */}
+                                <div className="card">
+                                    <div className="card-title">
+                                        <span>
+                                            {formatKarmaDatePill(selectedKarmaDate).label === "Today" ? t.lblTodaysYajna : `📜 Log for ${formatKarmaDatePill(selectedKarmaDate).label} (${formatKarmaDatePill(selectedKarmaDate).sub})`}
+                                        </span>
+                                        <span style={{ fontSize: "0.84rem", color: "var(--saffron)", fontWeight: 700 }}>
+                                            {selectedDateOfferedCount} / {filteredKarmasForSelectedDate.length} {state.arpanamWord}
+                                        </span>
+                                    </div>
+                                    <div className="card-desc standard-only">
+                                        {formatKarmaDatePill(selectedKarmaDate).label === "Today"
+                                            ? t.descTodaysYajna
+                                            : "Sacred actions dedicated on this date."}
+                                    </div>
+
+                                    {filteredKarmasForSelectedDate.length === 0 ? (
+                                        <div style={{ textAlign: "center", padding: "24px 12px", color: "var(--text-muted)" }}>
+                                            <div style={{ fontSize: "1.8rem", marginBottom: "6px" }}>🌺</div>
+                                            <div style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text-primary)" }}>
+                                                No tasks logged on {formatKarmaDatePill(selectedKarmaDate).label} ({formatKarmaDatePill(selectedKarmaDate).sub})
+                                            </div>
+                                            <div style={{ fontSize: "0.82rem", marginTop: "4px", marginBottom: "14px" }}>
+                                                Take a new Sankalpa above to dedicate an action unto Bhagwan.
+                                            </div>
+                                            <button className="btn btn-small" onClick={() => setKarmaSubTab("sankalpa")}>
+                                                ✍️ Take a Sankalpa
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        filteredKarmasForSelectedDate.map(item => (
+                                            <div key={item.id} className={`karma-item ${item.offered ? "offered" : ""}`}>
+                                                <div className="karma-top">
+                                                    <div className="karma-title">{item.title}</div>
+                                                    <span className="karma-bhava-tag">{item.bhava}</span>
+                                                </div>
+                                                <div className="karma-bottom">
+                                                    <span>🕒 {item.time}</span>
+                                                    {item.offered ? (
+                                                        <span style={{ color: "var(--success)", fontWeight: 700 }}>
+                                                            ✓ {state.arpanamWord}
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            className="btn btn-secondary btn-small"
+                                                            onClick={() => offerKarma(item.id)}
+                                                        >
+                                                            🙏 Offer ({state.arpanamWord})
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </section>
                 )}
 
                 {/* ========================================================
-                    TAB 3: SAHASRANAMA LIBRARY & REVIEW (SCROLLABLE)
+                    TAB 3: SAHASRANAMA LIBRARY, SEARCH & GAMES
                    ======================================================== */}
                 {activeTab === "library" && (
                     <section className="tab-pane active scrollable">
                         {/* Subtab Switcher */}
                         <div className="subtab-bar">
                             <button
+                                className={`subtab-btn ${librarySubTab === "search" ? "active" : ""}`}
+                                onClick={() => setLibrarySubTab("search")}
+                            >
+                                <span>🔍</span>
+                                <span>Search</span>
+                            </button>
+                            <button
                                 className={`subtab-btn ${librarySubTab === "collections" ? "active" : ""}`}
-                                onClick={() => setLibrarySubTab("collections")}
+                                onClick={() => { setLibrarySubTab("collections"); setSelectedCollectionId(null); }}
                             >
                                 <span>📚</span>
                                 <span>Collections</span>
@@ -1322,65 +1557,215 @@ export default function App() {
                             </button>
                             <button
                                 className={`subtab-btn ${librarySubTab === "review" ? "active" : ""}`}
-                                onClick={() => { setLibrarySubTab("review"); setReviewIndex(0); setShowReviewMeaning(false); }}
+                                onClick={() => { setLibrarySubTab("review"); setFlashcardsActive(false); setReviewIndex(0); setShowReviewMeaning(false); }}
                             >
                                 <span>🎴</span>
                                 <span>Flashcards</span>
                             </button>
                             <button
                                 className={`subtab-btn ${librarySubTab === "quiz" ? "active" : ""}`}
-                                onClick={() => { setLibrarySubTab("quiz"); generateQuizQuestion(); }}
+                                onClick={() => { setLibrarySubTab("quiz"); setQuizActive(false); }}
                             >
                                 <span>🎮</span>
                                 <span>Quiz Game</span>
                             </button>
                         </div>
 
-                        {/* SUBTAB 1: COLLECTIONS LIST */}
-                        {librarySubTab === "collections" && (
+                        {/* ========================================================
+                            SUBTAB 0: DIVINE NAME SEARCH (SCROLLABLE CARDS)
+                           ======================================================== */}
+                        {librarySubTab === "search" && (
                             <div>
-                                <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
-                                    <button
-                                        className="btn btn-small"
-                                        style={{ flex: 1 }}
-                                        onClick={() => setShowAddCollectionModal(true)}
-                                    >
-                                        ➕ Add Sahasranama / Stotra
-                                    </button>
-                                    <button
-                                        className="btn btn-secondary btn-small"
-                                        style={{ flex: 1 }}
-                                        onClick={() => {
-                                            if (state.sahasranamas.length > 0) {
-                                                setUploadTargetCollectionId(state.sahasranamas[0].id);
-                                            }
-                                            setShowUploadModal(true);
-                                        }}
-                                    >
-                                        📥 Upload CSV / Markdown
-                                    </button>
+                                {/* Search Box */}
+                                <div className="name-search-box">
+                                    <span className="name-search-icon">🔍</span>
+                                    <input
+                                        type="text"
+                                        className="name-search-input"
+                                        placeholder="Search by Divine Name, meaning, or stotra..."
+                                        value={nameSearchQuery}
+                                        onChange={e => setNameSearchQuery(e.target.value)}
+                                        autoFocus
+                                    />
+                                    {nameSearchQuery && (
+                                        <button
+                                            className="name-search-clear-btn"
+                                            onClick={() => setNameSearchQuery("")}
+                                            title="Clear search"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
                                 </div>
 
-                                {state.sahasranamas.map(col => {
-                                    const isExpanded = expandedCollectionId === col.id;
-                                    return (
-                                        <div key={col.id} className="collection-card">
-                                            <div
-                                                className="collection-header"
-                                                onClick={() => setExpandedCollectionId(isExpanded ? null : col.id)}
-                                            >
-                                                <div>
-                                                    <div className="collection-title">{col.title}</div>
-                                                    <div className="collection-meta">
-                                                        Deity: {col.deity} • {col.names.length} Names
+                                {/* Deity Filter Chips */}
+                                <div className="name-search-filters">
+                                    <button
+                                        type="button"
+                                        className={`name-search-chip ${nameSearchDeityFilter === "all" ? "active" : ""}`}
+                                        onClick={() => setNameSearchDeityFilter("all")}
+                                    >
+                                        ✨ All Deities
+                                    </button>
+                                    {allDeities.map(d => (
+                                        <button
+                                            key={d}
+                                            type="button"
+                                            className={`name-search-chip ${nameSearchDeityFilter === d ? "active" : ""}`}
+                                            onClick={() => setNameSearchDeityFilter(d)}
+                                        >
+                                            🔱 {d}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Search Results List */}
+                                {!nameSearchQuery.trim() ? (
+                                    <div style={{ textAlign: "center", padding: "28px 14px", color: "var(--text-muted)" }}>
+                                        <div style={{ fontSize: "2.2rem", marginBottom: "8px" }}>📖</div>
+                                        <div style={{ fontWeight: 700, fontSize: "1.05rem", color: "var(--text-primary)" }}>
+                                            Search Across All Sahasranamas
+                                        </div>
+                                        <div style={{ fontSize: "0.85rem", marginTop: "4px", lineHeight: 1.45 }}>
+                                            Type any Sanskrit name (e.g., विष्णु, गोविन्द, केशव), or an English/Hindi meaning keyword (e.g., Lord, Peace, Bliss, आनन्द) to find all matching names instantly.
+                                        </div>
+                                        <div style={{ display: "flex", gap: "6px", justifyContent: "center", flexWrap: "wrap", marginTop: "14px" }}>
+                                            {["विष्णु", "कृष्ण", "गोविन्द", "नारायण", "शिव", "शान्त"].map(suggestion => (
+                                                <button
+                                                    key={suggestion}
+                                                    className="btn btn-secondary btn-small"
+                                                    onClick={() => setNameSearchQuery(suggestion)}
+                                                >
+                                                    🔍 {suggestion}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : searchResults.length === 0 ? (
+                                    <div style={{ textAlign: "center", padding: "28px 14px", color: "var(--text-muted)" }}>
+                                        <div style={{ fontSize: "1.8rem", marginBottom: "6px" }}>🔍</div>
+                                        <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--text-primary)" }}>
+                                            No matching names found for "{nameSearchQuery}"
+                                        </div>
+                                        <div style={{ fontSize: "0.82rem", marginTop: "4px" }}>
+                                            Try searching with another spelling, keyword, or selecting "All Deities".
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <div style={{ fontSize: "0.84rem", color: "var(--text-muted)", fontWeight: 600, marginBottom: "8px" }}>
+                                            Found <strong>{searchResults.length}</strong> matching divine names:
+                                        </div>
+                                        <div className="name-search-results-list">
+                                            {searchResults.map(item => (
+                                                <div key={`${item.collectionId}-${item.id}`} className="name-search-card">
+                                                    <div className="name-search-header">
+                                                        <div>
+                                                            <div className="name-search-title">{item.name}</div>
+                                                            <div className="name-search-badges">
+                                                                <span className="name-search-badge">🔱 {item.deity}</span>
+                                                                <span className="name-search-badge">📖 {item.collectionTitle}</span>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            className="icon-action-btn"
+                                                            onClick={(e) => toggleFavoriteName(item.collectionId, item.name, e)}
+                                                            title={isNameFavorited(item.collectionId, item.name) ? "Favorited" : "Add to favorites"}
+                                                            style={{ fontSize: "1.2rem", color: isNameFavorited(item.collectionId, item.name) ? "#ff4757" : "var(--text-muted)" }}
+                                                        >
+                                                            {isNameFavorited(item.collectionId, item.name) ? "❤️" : "🤍"}
+                                                        </button>
+                                                    </div>
+
+                                                    {item.meaningHi && (
+                                                        <div className="name-search-meaning-hi">
+                                                            {item.meaningHi}
+                                                        </div>
+                                                    )}
+                                                    {item.meaningEn && (
+                                                        <div className="name-search-meaning-en">
+                                                            "{item.meaningEn}"
+                                                        </div>
+                                                    )}
+
+                                                    <div className="name-search-actions">
+                                                        <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                                                            Name #{item.nameIndex + 1}
+                                                        </span>
+                                                        <button
+                                                            className="btn btn-small"
+                                                            onClick={() => {
+                                                                setFsSelectedSource(`col:${item.collectionId}`);
+                                                                setFsNameIndex(item.nameIndex);
+                                                                setActiveTab("nama");
+                                                            }}
+                                                        >
+                                                            📿 Chant This Name
+                                                        </button>
                                                     </div>
                                                 </div>
-                                                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ========================================================
+                            SUBTAB 1: COLLECTIONS LIST (TWO-SCREEN FLOW)
+                           ======================================================== */}
+                        {librarySubTab === "collections" && (
+                            <div>
+                                {!selectedCollectionId ? (
+                                    /* Screen 1: Collections Overview List */
+                                    <div>
+                                        <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                                            <button
+                                                className="btn btn-small"
+                                                style={{ flex: 1 }}
+                                                onClick={() => setShowAddCollectionModal(true)}
+                                            >
+                                                ➕ Add Stotra
+                                            </button>
+                                            <button
+                                                className="btn btn-secondary btn-small"
+                                                style={{ flex: 1 }}
+                                                onClick={() => {
+                                                    if (state.sahasranamas.length > 0) {
+                                                        setUploadTargetCollectionId(state.sahasranamas[0].id);
+                                                    }
+                                                    setShowUploadModal(true);
+                                                }}
+                                            >
+                                                📥 Upload CSV
+                                            </button>
+                                        </div>
+
+                                        {state.sahasranamas.map(col => (
+                                            <div key={col.id} className="collection-card">
+                                                <div
+                                                    className="collection-header"
+                                                    onClick={() => setSelectedCollectionId(col.id)}
+                                                >
+                                                    <div>
+                                                        <div className="collection-title">{col.title}</div>
+                                                        <div className="collection-meta">
+                                                            Deity: {col.deity} • {col.names.length} Names
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: "flex", gap: "8px", marginTop: "12px", borderTop: "1px solid var(--border-light)", paddingTop: "10px" }}>
+                                                    <button
+                                                        className="btn btn-secondary btn-small"
+                                                        style={{ flex: 1 }}
+                                                        onClick={() => setSelectedCollectionId(col.id)}
+                                                    >
+                                                        📖 View Names ({col.names.length}) ➔
+                                                    </button>
                                                     <button
                                                         className="btn btn-small"
-                                                        style={{ padding: "4px 8px", fontSize: "0.74rem" }}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
+                                                        style={{ flex: 1 }}
+                                                        onClick={() => {
                                                             setFsSelectedSource(`col:${col.id}`);
                                                             setActiveTab("nama");
                                                             setFsNameIndex(0);
@@ -1389,73 +1774,116 @@ export default function App() {
                                                     >
                                                         📿 Chant
                                                     </button>
-                                                    <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
-                                                        {isExpanded ? "▲" : "▼"}
-                                                    </span>
                                                 </div>
                                             </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    /* Screen 2: Dedicated Screen for Focused Collection */
+                                    (() => {
+                                        const col = state.sahasranamas.find(c => c.id === selectedCollectionId);
+                                        if (!col) return null;
+                                        const filteredColNames = col.names.filter(n => {
+                                            if (!stotraSearchQuery.trim()) return true;
+                                            const q = stotraSearchQuery.toLowerCase();
+                                            return n.name.toLowerCase().includes(q) ||
+                                                n.meaningHi?.toLowerCase().includes(q) ||
+                                                n.meaningEn?.toLowerCase().includes(q);
+                                        });
 
-                                            {isExpanded && (
-                                                <div style={{ marginTop: "10px", borderTop: "1px solid var(--border)", paddingTop: "8px" }}>
-                                                    <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
-                                                        <button
-                                                            className="btn btn-small"
-                                                            style={{ padding: "3px 8px" }}
-                                                            onClick={() => {
-                                                                setTargetCollectionId(col.id);
-                                                                setShowAddNameModal(true);
-                                                            }}
-                                                        >
-                                                            ➕ Add Name
-                                                        </button>
-                                                        <button
-                                                            className="btn btn-secondary btn-small"
-                                                            style={{ padding: "3px 8px" }}
-                                                            onClick={() => {
-                                                                setUploadTargetCollectionId(col.id);
-                                                                setShowUploadModal(true);
-                                                            }}
-                                                        >
-                                                            📥 Import
-                                                        </button>
-                                                        <button
-                                                            className="icon-action-btn delete"
-                                                            style={{ marginLeft: "auto" }}
-                                                            onClick={() => handleDeleteCollection(col.id)}
-                                                            title="Delete Collection"
-                                                        >
-                                                            🗑️ Delete
-                                                        </button>
+                                        return (
+                                            <div>
+                                                {/* Dedicated Sub-Screen Header */}
+                                                <div className="sub-screen-header">
+                                                    <button
+                                                        className="btn-screen-back"
+                                                        onClick={() => { setSelectedCollectionId(null); setStotraSearchQuery(""); }}
+                                                    >
+                                                        ◀ Back
+                                                    </button>
+                                                    <div className="sub-screen-title-wrap">
+                                                        <div className="sub-screen-title">{col.title}</div>
+                                                        <div className="sub-screen-subtitle">Deity: {col.deity} • {col.names.length} Names</div>
                                                     </div>
+                                                </div>
 
-                                                    <div style={{ maxHeight: "200px", overflowY: "auto" }}>
-                                                        {col.names.length === 0 ? (
-                                                            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", textAlign: "center", padding: "8px" }}>
-                                                                No names added yet. Click 'Add Name' or 'Import' above.
-                                                            </div>
-                                                        ) : (
-                                                            col.names.map(nameItem => (
-                                                                <div
-                                                                    key={nameItem.id}
-                                                                    style={{
-                                                                        display: "flex",
-                                                                        justifyContent: "space-between",
-                                                                        alignItems: "center",
-                                                                        padding: "5px 6px",
-                                                                        borderBottom: "1px solid var(--border-light)",
-                                                                        fontSize: "0.8rem"
-                                                                    }}
-                                                                >
+                                                {/* Action Bar */}
+                                                <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" }}>
+                                                    <button
+                                                        className="btn btn-small"
+                                                        style={{ flex: 1 }}
+                                                        onClick={() => {
+                                                            setFsSelectedSource(`col:${col.id}`);
+                                                            setActiveTab("nama");
+                                                            setFsNameIndex(0);
+                                                        }}
+                                                    >
+                                                        📿 Chant Entire Stotra
+                                                    </button>
+                                                    <button
+                                                        className="btn btn-secondary btn-small"
+                                                        onClick={() => {
+                                                            setTargetCollectionId(col.id);
+                                                            setShowAddNameModal(true);
+                                                        }}
+                                                    >
+                                                        ➕ Add Name
+                                                    </button>
+                                                    <button
+                                                        className="btn btn-secondary btn-small"
+                                                        onClick={() => {
+                                                            setUploadTargetCollectionId(col.id);
+                                                            setShowUploadModal(true);
+                                                        }}
+                                                    >
+                                                        📥 Import
+                                                    </button>
+                                                    <button
+                                                        className="icon-action-btn delete"
+                                                        onClick={() => {
+                                                            handleDeleteCollection(col.id);
+                                                            setSelectedCollectionId(null);
+                                                        }}
+                                                        title="Delete Collection"
+                                                    >
+                                                        🗑️
+                                                    </button>
+                                                </div>
+
+                                                {/* Search filter within this stotra */}
+                                                <div className="input-group">
+                                                    <input
+                                                        type="text"
+                                                        placeholder={`Search inside ${col.title}...`}
+                                                        value={stotraSearchQuery}
+                                                        onChange={e => setStotraSearchQuery(e.target.value)}
+                                                    />
+                                                </div>
+
+                                                {/* Scrollable list of names */}
+                                                <div style={{ maxHeight: "calc(100vh - 280px)", overflowY: "auto" }}>
+                                                    {filteredColNames.length === 0 ? (
+                                                        <div style={{ textAlign: "center", padding: "20px", color: "var(--text-muted)" }}>
+                                                            No names found matching your filter.
+                                                        </div>
+                                                    ) : (
+                                                        filteredColNames.map((nameItem, idx) => (
+                                                            <div key={nameItem.id} className="card" style={{ padding: "10px 14px", marginBottom: "8px" }}>
+                                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                                                     <div>
-                                                                        <strong style={{ color: "var(--saffron)", marginRight: "6px" }}>{nameItem.name}</strong>
-                                                                        <span style={{ color: "var(--text-secondary)" }}>{nameItem.meaningHi || nameItem.meaningEn}</span>
+                                                                        <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginRight: "6px" }}>
+                                                                            #{idx + 1}
+                                                                        </span>
+                                                                        <strong style={{ color: "var(--saffron)", fontSize: "1.2rem" }}>
+                                                                            {nameItem.name}
+                                                                        </strong>
                                                                     </div>
                                                                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                                                                         <button
                                                                             className="icon-action-btn"
                                                                             onClick={(e) => toggleFavoriteName(col.id, nameItem.name, e)}
-                                                                            title={isNameFavorited(col.id, nameItem.name) ? "Favorited (Tap to remove)" : "Add to favorites"}
-                                                                            style={{ fontSize: "0.85rem", color: isNameFavorited(col.id, nameItem.name) ? "#ff4757" : "var(--text-muted)" }}
+                                                                            title={isNameFavorited(col.id, nameItem.name) ? "Favorited" : "Add to favorites"}
+                                                                            style={{ fontSize: "1.1rem", color: isNameFavorited(col.id, nameItem.name) ? "#ff4757" : "var(--text-muted)" }}
                                                                         >
                                                                             {isNameFavorited(col.id, nameItem.name) ? "❤️" : "🤍"}
                                                                         </button>
@@ -1468,24 +1896,36 @@ export default function App() {
                                                                         </button>
                                                                     </div>
                                                                 </div>
-                                                            ))
-                                                        )}
-                                                    </div>
+                                                                {nameItem.meaningHi && (
+                                                                    <div style={{ fontSize: "0.95rem", color: "var(--text-primary)", marginTop: "4px" }}>
+                                                                        {nameItem.meaningHi}
+                                                                    </div>
+                                                                )}
+                                                                {nameItem.meaningEn && (
+                                                                    <div style={{ fontSize: "0.88rem", color: "var(--text-secondary)", fontStyle: "italic", marginTop: "2px" }}>
+                                                                        "{nameItem.meaningEn}"
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))
+                                                    )}
                                                 </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
+                                            </div>
+                                        );
+                                    })()
+                                )}
                             </div>
                         )}
 
-                        {/* SUBTAB: FAVORITES LIST */}
+                        {/* ========================================================
+                            SUBTAB 2: FAVORITES LIST
+                           ======================================================== */}
                         {librarySubTab === "favorites" && (
                             <div className="card">
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "6px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "6px" }}>
                                     <div>
                                         <div className="card-title" style={{ margin: 0 }}>❤️ My Favorite Names</div>
-                                        <div className="card-desc" style={{ fontSize: "0.74rem", margin: "2px 0 0" }}>
+                                        <div className="card-desc" style={{ fontSize: "0.82rem", margin: "3px 0 0" }}>
                                             {allFavoriteNames.length} names selected across all Sahasranamas & Stotras
                                         </div>
                                     </div>
@@ -1507,6 +1947,7 @@ export default function App() {
                                                 onClick={() => {
                                                     setQuizSourceFilter("favorites");
                                                     setLibrarySubTab("quiz");
+                                                    setQuizActive(true);
                                                     generateQuizQuestion("favorites");
                                                 }}
                                                 title="Play quiz on favorite names"
@@ -1518,25 +1959,25 @@ export default function App() {
                                 </div>
 
                                 {allFavoriteNames.length === 0 ? (
-                                    <div style={{ textAlign: "center", padding: "24px 12px", color: "var(--text-muted)" }}>
+                                    <div style={{ textAlign: "center", padding: "28px 12px", color: "var(--text-muted)" }}>
                                         <div style={{ fontSize: "2rem", marginBottom: "6px" }}>🤍</div>
-                                        <div style={{ fontWeight: 600, fontSize: "0.92rem", color: "var(--text-primary)" }}>No Favorites Yet</div>
-                                        <div style={{ fontSize: "0.78rem", marginTop: "4px" }}>
-                                            Tap the floating heart (❤️) on any name in Nama Smaran chanting, Flashcards, or the Quiz to add it to your sacred favorites list.
+                                        <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--text-primary)" }}>No Favorites Yet</div>
+                                        <div style={{ fontSize: "0.85rem", marginTop: "6px", lineHeight: 1.45 }}>
+                                            Tap the floating heart (❤️) on any divine name in Nama Smaran, Search, Flashcards, or the Quiz to add it to your sacred favorites list.
                                         </div>
                                     </div>
                                 ) : (
-                                    <div style={{ maxHeight: "360px", overflowY: "auto" }}>
+                                    <div style={{ maxHeight: "calc(100vh - 250px)", overflowY: "auto" }}>
                                         {allFavoriteNames.map((n, idx) => (
-                                            <div key={idx} className="favorite-name-item">
+                                            <div key={idx} className="favorite-name-item" style={{ padding: "10px 12px", marginBottom: "8px", background: "var(--bg-accent-soft)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)" }}>
                                                 <div style={{ flex: 1, minWidth: 0, paddingRight: "8px" }}>
                                                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                                        <strong style={{ color: "var(--saffron)", fontSize: "0.94rem" }}>{n.name}</strong>
-                                                        <span style={{ fontSize: "0.68rem", background: "var(--bg-accent)", padding: "1px 6px", borderRadius: "10px", color: "var(--text-muted)" }}>
+                                                        <strong style={{ color: "var(--saffron)", fontSize: "1.15rem" }}>{n.name}</strong>
+                                                        <span style={{ fontSize: "0.74rem", background: "var(--bg-accent)", padding: "2px 7px", borderRadius: "10px", color: "var(--text-secondary)" }}>
                                                             {n.deity || n.collectionTitle}
                                                         </span>
                                                     </div>
-                                                    <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginTop: "2px" }}>
+                                                    <div style={{ fontSize: "0.88rem", color: "var(--text-primary)", marginTop: "4px" }}>
                                                         {n.meaningHi || n.meaningEn}
                                                     </div>
                                                 </div>
@@ -1544,7 +1985,7 @@ export default function App() {
                                                     className="icon-action-btn"
                                                     onClick={(e) => toggleFavoriteName(n.collectionId, n.name, e)}
                                                     title="Remove from favorites"
-                                                    style={{ fontSize: "1rem", color: "#ff4757" }}
+                                                    style={{ fontSize: "1.2rem", color: "#ff4757" }}
                                                 >
                                                     ❤️
                                                 </button>
@@ -1555,201 +1996,293 @@ export default function App() {
                             </div>
                         )}
 
-                        {/* SUBTAB 2: FLASHCARD REVIEW */}
+                        {/* ========================================================
+                            SUBTAB 3: FLASHCARD REVIEW (TWO-SCREEN FLOW)
+                           ======================================================== */}
                         {librarySubTab === "review" && (
-                            <div className="card">
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "6px" }}>
-                                    <div className="card-title" style={{ margin: 0 }}>🎴 Flashcard Review</div>
-                                    <div style={{ display: "flex", gap: "6px" }}>
-                                        <select
-                                            value={reviewDeityFilter}
-                                            onChange={e => { setReviewDeityFilter(e.target.value); setReviewIndex(0); }}
-                                            style={{ padding: "4px 6px", fontSize: "0.76rem" }}
-                                        >
-                                            <option value="all">All Deities</option>
-                                            <option value="favorites">❤️ Favorites ({allFavoriteNames.length})</option>
-                                            {allDeities.map(d => (
-                                                <option key={d} value={d}>🔱 {d}</option>
-                                            ))}
-                                        </select>
-                                        <select
-                                            value={reviewMode}
-                                            onChange={e => { setReviewMode(e.target.value); setReviewIndex(0); }}
-                                            style={{ padding: "4px 6px", fontSize: "0.76rem" }}
-                                        >
-                                            <option value="sequential">Sequential</option>
-                                            <option value="random">Random</option>
-                                        </select>
-                                    </div>
-                                </div>
+                            <div>
+                                {!flashcardsActive ? (
+                                    /* Screen 1: Flashcards Setup / Deck Chooser */
+                                    <div className="card">
+                                        <div className="card-title">🎴 Sacred Flashcards Deck</div>
+                                        <div className="card-desc">
+                                            Meditate upon each sacred name and reveal its divine meaning at your own pace.
+                                        </div>
 
-                                {currentReviewItem ? (
-                                    <div>
-                                        <div
-                                            className="sacred-chant-canvas"
-                                            onClick={() => setShowReviewMeaning(s => !s)}
-                                            style={{ minHeight: "200px", marginBottom: "10px" }}
-                                        >
-                                            <button
-                                                className={`floating-sacred-heart ${isNameFavorited(currentReviewItem.collectionId, currentReviewItem.name) ? "active" : ""}`}
-                                                onClick={(e) => toggleFavoriteName(currentReviewItem.collectionId, currentReviewItem.name, e)}
-                                                title={isNameFavorited(currentReviewItem.collectionId, currentReviewItem.name) ? "Favorited (Tap to remove)" : "Add to Favorites"}
-                                                aria-label="Favorite Name"
+                                        <div className="input-group">
+                                            <label>Select Deity or Collection:</label>
+                                            <select
+                                                value={reviewDeityFilter}
+                                                onChange={e => { setReviewDeityFilter(e.target.value); setReviewIndex(0); }}
                                             >
-                                                <span>{isNameFavorited(currentReviewItem.collectionId, currentReviewItem.name) ? "❤️" : "🤍"}</span>
-                                            </button>
-
-                                            <div className="sacred-meta-row">
-                                                <span>{currentReviewItem.collectionTitle}</span>
-                                                <span>• {(reviewIndex % reviewFilteredNames.length) + 1} / {reviewFilteredNames.length}</span>
-                                            </div>
-
-                                            <div className="sacred-name-text">
-                                                {currentReviewItem.name}
-                                            </div>
-
-                                            {showReviewMeaning ? (
-                                                <div className="sacred-meaning-box">
-                                                    {currentReviewItem.meaningHi && (
-                                                        <div className="sacred-meaning-hi">{currentReviewItem.meaningHi}</div>
-                                                    )}
-                                                    {currentReviewItem.meaningEn && (
-                                                        <div className="sacred-meaning-en">{currentReviewItem.meaningEn}</div>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <div className="sacred-tap-prompt">Tap card to reveal meaning</div>
-                                            )}
+                                                <option value="all">✨ All Deities & Stotras</option>
+                                                <option value="favorites">❤️ Favorites ({allFavoriteNames.length} names)</option>
+                                                {allDeities.map(d => (
+                                                    <option key={d} value={d}>🔱 {d}</option>
+                                                ))}
+                                            </select>
                                         </div>
 
-                                        <div style={{ display: "flex", gap: "8px" }}>
-                                            <button className="btn btn-secondary" onClick={prevReviewName}>
-                                                ◀ Previous
-                                            </button>
-                                            <button className="btn" onClick={nextReviewName}>
-                                                Next Name ▶
-                                            </button>
+                                        <div className="input-group">
+                                            <label>Review Order Mode:</label>
+                                            <select
+                                                value={reviewMode}
+                                                onChange={e => { setReviewMode(e.target.value); setReviewIndex(0); }}
+                                            >
+                                                <option value="sequential">➡️ Sequential Order</option>
+                                                <option value="random">🔀 Random Shuffle</option>
+                                            </select>
                                         </div>
+
+                                        <div style={{ margin: "14px 0", padding: "10px", background: "var(--bg-accent)", borderRadius: "var(--radius-sm)", textAlign: "center" }}>
+                                            <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                                                {reviewFilteredNames.length} Sacred Cards Available
+                                            </span>
+                                        </div>
+
+                                        <button
+                                            className="btn"
+                                            disabled={reviewFilteredNames.length === 0}
+                                            onClick={() => setFlashcardsActive(true)}
+                                        >
+                                            ▶ Begin Flashcard Smaran
+                                        </button>
                                     </div>
                                 ) : (
-                                    <div style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)" }}>
-                                        No names found for the selected filter.
+                                    /* Screen 2: Dedicated Fullscreen Flashcard Viewer */
+                                    <div>
+                                        <div className="sub-screen-header">
+                                            <button
+                                                className="btn-screen-back"
+                                                onClick={() => setFlashcardsActive(false)}
+                                            >
+                                                ◀ Change Deck
+                                            </button>
+                                            <div className="sub-screen-title-wrap">
+                                                <div className="sub-screen-title">🎴 Flashcard Review</div>
+                                                <div className="sub-screen-subtitle">
+                                                    Card {(reviewIndex % reviewFilteredNames.length) + 1} of {reviewFilteredNames.length}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {currentReviewItem ? (
+                                            <div>
+                                                <div
+                                                    className="sacred-chant-canvas"
+                                                    onClick={() => setShowReviewMeaning(s => !s)}
+                                                    style={{ minHeight: "220px", marginBottom: "14px" }}
+                                                >
+                                                    <button
+                                                        className={`floating-sacred-heart ${isNameFavorited(currentReviewItem.collectionId, currentReviewItem.name) ? "active" : ""}`}
+                                                        onClick={(e) => toggleFavoriteName(currentReviewItem.collectionId, currentReviewItem.name, e)}
+                                                        title={isNameFavorited(currentReviewItem.collectionId, currentReviewItem.name) ? "Favorited" : "Add to Favorites"}
+                                                        aria-label="Favorite Name"
+                                                    >
+                                                        <span>{isNameFavorited(currentReviewItem.collectionId, currentReviewItem.name) ? "❤️" : "🤍"}</span>
+                                                    </button>
+
+                                                    <div className="sacred-meta-row">
+                                                        <span>{currentReviewItem.collectionTitle}</span>
+                                                        <span>• {(reviewIndex % reviewFilteredNames.length) + 1} / {reviewFilteredNames.length}</span>
+                                                    </div>
+
+                                                    <div className="sacred-name-text">
+                                                        {currentReviewItem.name}
+                                                    </div>
+
+                                                    {showReviewMeaning ? (
+                                                        <div className="sacred-meaning-box">
+                                                            {currentReviewItem.meaningHi && (
+                                                                <div className="sacred-meaning-hi">{currentReviewItem.meaningHi}</div>
+                                                            )}
+                                                            {currentReviewItem.meaningEn && (
+                                                                <div className="sacred-meaning-en">{currentReviewItem.meaningEn}</div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="sacred-tap-prompt">Tap card to reveal sacred meaning</div>
+                                                    )}
+                                                </div>
+
+                                                <div style={{ display: "flex", gap: "10px" }}>
+                                                    <button className="btn btn-secondary" onClick={prevReviewName}>
+                                                        ◀ Previous
+                                                    </button>
+                                                    <button className="btn" onClick={nextReviewName}>
+                                                        Next Name ▶
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ textAlign: "center", padding: "20px", color: "var(--text-muted)" }}>
+                                                No cards found for this filter.
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
                         )}
 
-                        {/* SUBTAB 3: MCQ REMINDER GAME WITH SOURCE SELECTOR */}
+                        {/* ========================================================
+                            SUBTAB 4: MCQ REMINDER GAME (TWO-SCREEN FLOW)
+                           ======================================================== */}
                         {librarySubTab === "quiz" && (
-                            <div className="quiz-card">
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                                    <div>
-                                        <div className="card-title" style={{ margin: 0 }}>🎮 Nama Reminder Game</div>
-                                        <div className="quiz-subtitle" style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>
-                                            Identify Bhagwan's Name from the Divine Meaning
+                            <div>
+                                {!quizActive ? (
+                                    /* Screen 1: Quiz Selector / Launch Screen */
+                                    <div className="quiz-card">
+                                        <div className="card-title">🎮 Divine Name Reminder Game</div>
+                                        <div className="card-desc">
+                                            Deepen your remembrance of Bhagwan's Divine Names by identifying the sacred Name that matches each revealed meaning.
                                         </div>
-                                    </div>
-                                    <div style={{ display: "flex", gap: "5px" }}>
-                                        <div className="score-badge">⭐ {quizScore}</div>
-                                        <div className="score-badge">🔥 {quizStreak}</div>
-                                    </div>
-                                </div>
 
-                                {/* DEITY / STOTRA CHOOSER FOR QUIZ */}
-                                <div className="quiz-source-bar" style={{ display: "flex", alignItems: "center", gap: "8px", margin: "10px 0 12px", background: "var(--bg-accent)", padding: "6px 10px", borderRadius: "var(--radius-sm)" }}>
-                                    <label style={{ margin: 0, fontSize: "0.76rem", fontWeight: 700, color: "var(--saffron)", whiteSpace: "nowrap" }}>
-                                        🎯 Play From:
-                                    </label>
-                                    <select
-                                        value={quizSourceFilter}
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            setQuizSourceFilter(val);
-                                            generateQuizQuestion(val);
-                                        }}
-                                        style={{ flex: 1, padding: "4px 8px", fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}
-                                    >
-                                        <option value="all">✨ All Sahasranamas & Deities</option>
-                                        <option value="favorites">❤️ My Favorite Names Only ({allFavoriteNames.length} names)</option>
-                                        <optgroup label="🔱 Filter by Deity">
-                                            {allDeities.map(d => (
-                                                <option key={`deity:${d}`} value={`deity:${d}`}>
-                                                    🔱 {d} (All stotras)
-                                                </option>
-                                            ))}
-                                        </optgroup>
-                                        <optgroup label="📖 Specific Sahasranama / Stotra">
-                                            {state.sahasranamas.map(col => (
-                                                <option key={`col:${col.id}`} value={`col:${col.id}`}>
-                                                    📖 {col.title} ({col.names.length} names)
-                                                </option>
-                                            ))}
-                                        </optgroup>
-                                    </select>
-                                </div>
-
-                                {quizQuestion ? (
-                                    <div>
-                                        <div className="quiz-question-box">
-                                            <button
-                                                className={`floating-sacred-heart ${isNameFavorited(quizQuestion.collectionId, quizQuestion.correctName) ? "active" : ""}`}
-                                                onClick={(e) => toggleFavoriteName(quizQuestion.collectionId, quizQuestion.correctName, e)}
-                                                title={isNameFavorited(quizQuestion.collectionId, quizQuestion.correctName) ? "Favorited (Tap to remove)" : "Add to Favorites"}
-                                                aria-label="Favorite this Name"
+                                        <div className="input-group">
+                                            <label>Select Stotra / Deck to Play From:</label>
+                                            <select
+                                                value={quizSourceFilter}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setQuizSourceFilter(val);
+                                                }}
                                             >
-                                                <span>{isNameFavorited(quizQuestion.collectionId, quizQuestion.correctName) ? "❤️" : "🤍"}</span>
-                                            </button>
-                                            <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginBottom: "3px" }}>
-                                                {quizQuestion.collectionTitle} ({quizQuestion.deity})
-                                            </div>
-                                            <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.35 }}>
-                                                "{quizQuestion.meaning}"
-                                            </div>
-                                            {quizQuestion.meaningSecondary && (
-                                                <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", fontStyle: "italic", marginTop: "3px" }}>
-                                                    ({quizQuestion.meaningSecondary})
-                                                </div>
-                                            )}
+                                                <option value="all">✨ All Sahasranamas & Deities</option>
+                                                <option value="favorites">❤️ My Favorite Names Only ({allFavoriteNames.length} names)</option>
+                                                <optgroup label="🔱 Filter by Deity">
+                                                    {allDeities.map(d => (
+                                                        <option key={`deity:${d}`} value={`deity:${d}`}>
+                                                            🔱 {d} (All stotras)
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                                <optgroup label="📖 Specific Sahasranama / Stotra">
+                                                    {state.sahasranamas.map(col => (
+                                                        <option key={`col:${col.id}`} value={`col:${col.id}`}>
+                                                            📖 {col.title} ({col.names.length} names)
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            </select>
                                         </div>
 
-                                        <div>
-                                            {quizQuestion.options.map((opt, i) => {
-                                                let btnClass = "quiz-option-btn";
-                                                if (quizAnswerChecked) {
-                                                    if (opt === quizQuestion.correctName) btnClass += " correct";
-                                                    else if (opt === quizSelectedOption) btnClass += " wrong";
-                                                }
-                                                return (
-                                                    <button
-                                                        key={i}
-                                                        className={btnClass}
-                                                        onClick={() => handleQuizOptionClick(opt)}
-                                                    >
-                                                        <span>{opt}</span>
-                                                    </button>
-                                                );
-                                            })}
+                                        <div style={{ display: "flex", gap: "10px", margin: "14px 0" }}>
+                                            <div style={{ flex: 1, padding: "12px", background: "var(--bg-accent)", borderRadius: "var(--radius-sm)", textAlign: "center" }}>
+                                                <div style={{ fontSize: "1.4rem" }}>⭐</div>
+                                                <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--saffron)" }}>{quizScore}</div>
+                                                <div style={{ fontSize: "0.76rem", color: "var(--text-muted)" }}>Score</div>
+                                            </div>
+                                            <div style={{ flex: 1, padding: "12px", background: "var(--bg-accent)", borderRadius: "var(--radius-sm)", textAlign: "center" }}>
+                                                <div style={{ fontSize: "1.4rem" }}>🔥</div>
+                                                <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--saffron)" }}>{quizStreak}</div>
+                                                <div style={{ fontSize: "0.76rem", color: "var(--text-muted)" }}>Streak</div>
+                                            </div>
                                         </div>
 
-                                        {quizAnswerChecked && (
-                                            <div style={{ textAlign: "center", marginTop: "10px" }}>
-                                                <button className="btn" onClick={() => generateQuizQuestion()}>
-                                                    Next Question ▶
-                                                </button>
-                                            </div>
-                                        )}
+                                        <button
+                                            className="btn"
+                                            onClick={() => {
+                                                generateQuizQuestion(quizSourceFilter);
+                                                setQuizActive(true);
+                                            }}
+                                        >
+                                            ▶ Start Reminder Game
+                                        </button>
                                     </div>
                                 ) : (
-                                    <div style={{ textAlign: "center", padding: "18px", color: "var(--text-muted)", fontSize: "0.82rem" }}>
-                                        {quizSourceFilter === "favorites" ? (
-                                            <span>
-                                                ❤️ You need at least 2 favorited names with meanings to play the Quiz in Favorites mode.<br/>
-                                                <span style={{ fontSize: "0.76rem" }}>
-                                                    Tap the floating ❤️ on any name in <strong>Nama Smaran</strong>, <strong>Flashcards</strong>, or the <strong>Stotra Library</strong> to add favorites!
-                                                </span>
-                                            </span>
+                                    /* Screen 2: Dedicated Game Screen */
+                                    <div className="quiz-card">
+                                        {/* Game Top Navigation */}
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                                            <button
+                                                className="btn-screen-back"
+                                                onClick={() => setQuizActive(false)}
+                                            >
+                                                ◀ Change Deck
+                                            </button>
+                                            <div style={{ display: "flex", gap: "6px" }}>
+                                                <div className="score-badge">⭐ {quizScore}</div>
+                                                <div className="score-badge">🔥 {quizStreak}</div>
+                                            </div>
+                                        </div>
+
+                                        {quizQuestion ? (
+                                            <div>
+                                                <div className="quiz-question-box">
+                                                    <button
+                                                        className={`floating-sacred-heart ${isNameFavorited(quizQuestion.collectionId, quizQuestion.correctName) ? "active" : ""}`}
+                                                        onClick={(e) => toggleFavoriteName(quizQuestion.collectionId, quizQuestion.correctName, e)}
+                                                        title={isNameFavorited(quizQuestion.collectionId, quizQuestion.correctName) ? "Favorited" : "Add to Favorites"}
+                                                        aria-label="Favorite this Name"
+                                                    >
+                                                        <span>{isNameFavorited(quizQuestion.collectionId, quizQuestion.correctName) ? "❤️" : "🤍"}</span>
+                                                    </button>
+                                                    <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginBottom: "4px" }}>
+                                                        {quizQuestion.collectionTitle} ({quizQuestion.deity})
+                                                    </div>
+                                                    <div style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.4 }}>
+                                                        "{quizQuestion.meaning}"
+                                                    </div>
+                                                    {quizQuestion.meaningSecondary && (
+                                                        <div style={{ fontSize: "0.92rem", color: "var(--text-secondary)", fontStyle: "italic", marginTop: "4px" }}>
+                                                            ({quizQuestion.meaningSecondary})
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    {quizQuestion.options.map((opt, i) => {
+                                                        let btnClass = "quiz-option-btn";
+                                                        if (quizAnswerChecked) {
+                                                            if (opt === quizQuestion.correctName) btnClass += " correct";
+                                                            else if (opt === quizSelectedOption) btnClass += " wrong";
+                                                        }
+                                                        return (
+                                                            <button
+                                                                key={i}
+                                                                className={btnClass}
+                                                                onClick={() => handleQuizOptionClick(opt)}
+                                                            >
+                                                                <span>{opt}</span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {quizAnswerChecked && (
+                                                    <div style={{ textAlign: "center", marginTop: "14px" }}>
+                                                        <button className="btn" onClick={() => generateQuizQuestion()}>
+                                                            Next Question ▶
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                                <div style={{ textAlign: "center", marginTop: "12px" }}>
+                                                    <button
+                                                        style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "0.82rem" }}
+                                                        onClick={() => setQuizActive(false)}
+                                                    >
+                                                        ✕ Exit Game to Selector
+                                                    </button>
+                                                </div>
+                                            </div>
                                         ) : (
-                                            "Not enough names with meanings found for this filter. Please choose another Deity/Stotram or add more names!"
+                                            <div style={{ textAlign: "center", padding: "20px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
+                                                {quizSourceFilter === "favorites" ? (
+                                                    <span>
+                                                        ❤️ You need at least 2 favorited names with meanings to play the Quiz in Favorites mode.<br/><br/>
+                                                        <button className="btn btn-small" onClick={() => setQuizActive(false)}>
+                                                            ◀ Return to Deck Chooser
+                                                        </button>
+                                                    </span>
+                                                ) : (
+                                                    <span>
+                                                        Not enough names with meanings found for this filter.<br/><br/>
+                                                        <button className="btn btn-small" onClick={() => setQuizActive(false)}>
+                                                            ◀ Choose Another Deck
+                                                        </button>
+                                                    </span>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 )}
@@ -1759,193 +2292,353 @@ export default function App() {
                 )}
 
                 {/* ========================================================
-                    TAB 4: SETTINGS & CUSTOMIZATION (SCROLLABLE)
+                    TAB 4: SETTINGS & CUSTOMIZATION (TWO-SCREEN FLOW)
                    ======================================================== */}
                 {activeTab === "settings" && (
                     <section className="tab-pane active scrollable">
-                        {/* Ultra-Minimal Mode Option */}
-                        <div className="card">
-                            <div className="card-title">
-                                <span>✨ Ultra-Minimal Mode</span>
-                                <input
-                                    type="checkbox"
-                                    checked={ultraMinimal}
-                                    onChange={toggleUltraMinimal}
-                                    style={{ width: "18px", height: "18px", accentColor: "var(--saffron)", cursor: "pointer" }}
-                                />
-                            </div>
-                            <div className="card-desc">
-                                When enabled, all secondary quotes, long descriptions, and verbose helper text are hidden across all screens, keeping ONLY the direct action visible.
-                            </div>
-                        </div>
-
-                        {/* PWA Install Card */}
-                        <div className="card install-card-highlight">
-                            <div className="card-title">
-                                <span>📲 Install Nitya Smaran as App (PWA)</span>
-                                <span style={{ fontSize: "0.76rem", color: isStandalone ? "var(--success)" : "var(--saffron)", fontWeight: 700 }}>
-                                    {isStandalone ? "✓ Installed" : "Installable"}
-                                </span>
-                            </div>
-                            <div className="card-desc">
-                                Install on your smartphone (iPhone / Android) or computer. Runs in full-screen standalone mode with offline support, instant launch, and haptic feedback like a native app.
-                            </div>
-                            {!isStandalone ? (
-                                <button className="btn" onClick={handleInstallClick} style={{ marginTop: "4px" }}>
-                                    📲 Install App on this Device
-                                </button>
-                            ) : (
-                                <div style={{ color: "var(--success)", fontWeight: 600, fontSize: "0.82rem" }}>
-                                    ✓ You are currently running Nitya Smaran in installed standalone mode.
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Deity & Mantra Presets */}
-                        <div className="card">
-                            <div className="card-title">🙏 Deity & Mantra Preset</div>
-                            <div className="card-desc standard-only">Select your Ishta Devata to customize the divine focus.</div>
-
-                            <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginBottom: "10px" }}>
-                                {Object.entries(PRESETS).map(([key, p]) => (
-                                    <button
-                                        key={key}
-                                        className="btn btn-secondary btn-small"
-                                        onClick={() => setState(s => ({ ...s, deityName: p.deityName, mantra: p.mantra, arpanamWord: p.arpanamWord }))}
-                                    >
-                                        {p.deityName.split(" ")[0]} {p.deityName.split(" ")[1]}
-                                    </button>
-                                ))}
-                            </div>
-
-                            <div className="input-group">
-                                <label>Deity Name:</label>
-                                <input
-                                    type="text"
-                                    value={state.deityName}
-                                    onChange={e => setState(s => ({ ...s, deityName: e.target.value }))}
-                                />
-                            </div>
-
-                            <div className="input-group">
-                                <label>Mantra / Mahamantra:</label>
-                                <input
-                                    type="text"
-                                    value={state.mantra}
-                                    onChange={e => setState(s => ({ ...s, mantra: e.target.value }))}
-                                />
-                            </div>
-
-                            <div className="input-group">
-                                <label>Arpanam Offering Word:</label>
-                                <input
-                                    type="text"
-                                    value={state.arpanamWord}
-                                    onChange={e => setState(s => ({ ...s, arpanamWord: e.target.value }))}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Manage Bhava Categories */}
-                        <div className="card">
-                            <div className="card-title">
-                                <span>🌺 Manage Bhava Categories</span>
-                            </div>
-                            <div className="card-desc standard-only">
-                                Customize the attitudes you anchor before starting an action. Add, edit, or remove your personal Bhavas.
-                            </div>
-
-                            <div style={{ marginBottom: "10px" }}>
-                                {state.bhavaOptions.map((bhava, index) => (
-                                    <div key={index} className="category-manage-item">
-                                        {editingBhavaIndex === index ? (
-                                            <div style={{ display: "flex", gap: "5px", width: "100%" }}>
-                                                <input
-                                                    type="text"
-                                                    value={editingBhavaValue}
-                                                    onChange={e => setEditingBhavaValue(e.target.value)}
-                                                    style={{ flex: 1, padding: "4px 6px" }}
-                                                />
-                                                <button className="btn btn-small" onClick={handleSaveEditBhavaCategory}>Save</button>
-                                                <button className="btn btn-secondary btn-small" onClick={() => setEditingBhavaIndex(null)}>Cancel</button>
+                        {!settingsActiveSection ? (
+                            /* Screen 1: Clean Grouped Settings Menu */
+                            <div>
+                                <div className="card-title" style={{ marginBottom: "12px" }}>⚙️ App Preferences & Settings</div>
+                                <div className="settings-menu-list">
+                                    <div className="settings-menu-item" onClick={() => setSettingsActiveSection("deity")}>
+                                        <div className="settings-item-left">
+                                            <span className="settings-item-icon">🕉️</span>
+                                            <div>
+                                                <div className="settings-item-title">Deity & Divine Arpanam</div>
+                                                <div className="settings-item-desc">{state.deityName} • {state.arpanamWord}</div>
                                             </div>
-                                        ) : (
-                                            <>
-                                                <span>{bhava}</span>
-                                                <div style={{ display: "flex", gap: "4px" }}>
-                                                    <button
-                                                        className="icon-action-btn"
-                                                        title="Edit category"
-                                                        onClick={() => handleEditBhavaCategory(index)}
-                                                    >
-                                                        ✏️
-                                                    </button>
-                                                    <button
-                                                        className="icon-action-btn delete"
-                                                        title="Delete category"
-                                                        onClick={() => handleDeleteBhavaCategory(bhava)}
-                                                    >
-                                                        🗑️
-                                                    </button>
+                                        </div>
+                                        <span className="settings-item-arrow">➔</span>
+                                    </div>
+
+                                    <div className="settings-menu-item" onClick={() => setSettingsActiveSection("audio")}>
+                                        <div className="settings-item-left">
+                                            <span className="settings-item-icon">🔔</span>
+                                            <div>
+                                                <div className="settings-item-title">Temple Bell Nudge & Sound</div>
+                                                <div className="settings-item-desc">
+                                                    {state.nudgeInterval > 0 ? `Interval: ${state.nudgeInterval}m` : "Manual only (Off)"}
                                                 </div>
-                                            </>
+                                            </div>
+                                        </div>
+                                        <span className="settings-item-arrow">➔</span>
+                                    </div>
+
+                                    <div className="settings-menu-item" onClick={() => setSettingsActiveSection("bhavas")}>
+                                        <div className="settings-item-left">
+                                            <span className="settings-item-icon">🌺</span>
+                                            <div>
+                                                <div className="settings-item-title">Custom Bhava Categories</div>
+                                                <div className="settings-item-desc">{state.bhavaOptions.length} dedicated attitudes configured</div>
+                                            </div>
+                                        </div>
+                                        <span className="settings-item-arrow">➔</span>
+                                    </div>
+
+                                    <div className="settings-menu-item" onClick={() => setSettingsActiveSection("appearance")}>
+                                        <div className="settings-item-left">
+                                            <span className="settings-item-icon">🎨</span>
+                                            <div>
+                                                <div className="settings-item-title">Appearance & Minimal Mode</div>
+                                                <div className="settings-item-desc">
+                                                    Theme: {state.theme === "dark" ? "Temple Midnight" : "Sacred Ashram"} • Minimal: {ultraMinimal ? "ON" : "OFF"}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <span className="settings-item-arrow">➔</span>
+                                    </div>
+
+                                    <div className="settings-menu-item" onClick={() => setSettingsActiveSection("sync")}>
+                                        <div className="settings-item-left">
+                                            <span className="settings-item-icon">☁️</span>
+                                            <div>
+                                                <div className="settings-item-title">Cloudflare D1 Cloud Sync</div>
+                                                <div className="settings-item-desc">Status: {syncStatus}</div>
+                                            </div>
+                                        </div>
+                                        <span className="settings-item-arrow">➔</span>
+                                    </div>
+
+                                    <div className="settings-menu-item" onClick={() => setSettingsActiveSection("install")}>
+                                        <div className="settings-item-left">
+                                            <span className="settings-item-icon">📲</span>
+                                            <div>
+                                                <div className="settings-item-title">Install App (PWA)</div>
+                                                <div className="settings-item-desc">{isStandalone ? "✓ Installed Standalone" : "Installable on Phone/PC"}</div>
+                                            </div>
+                                        </div>
+                                        <span className="settings-item-arrow">➔</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            /* Screen 2: Dedicated Setting Screen */
+                            <div>
+                                <div className="sub-screen-header">
+                                    <button
+                                        className="btn-screen-back"
+                                        onClick={() => setSettingsActiveSection(null)}
+                                    >
+                                        ◀ Back to Settings
+                                    </button>
+                                    <div className="sub-screen-title-wrap">
+                                        <div className="sub-screen-title">
+                                            {settingsActiveSection === "deity" && "🕉️ Deity & Divine Arpanam"}
+                                            {settingsActiveSection === "audio" && "🔔 Temple Bell & Sound"}
+                                            {settingsActiveSection === "bhavas" && "🌺 Bhava Categories"}
+                                            {settingsActiveSection === "appearance" && "🎨 Appearance & Minimal Mode"}
+                                            {settingsActiveSection === "sync" && "☁️ Cloudflare D1 Cloud Sync"}
+                                            {settingsActiveSection === "install" && "📲 Install Nitya Smaran (PWA)"}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Section: Deity & Arpanam */}
+                                {settingsActiveSection === "deity" && (
+                                    <div className="card">
+                                        <div className="card-title">🙏 Deity & Mantra Preset</div>
+                                        <div className="card-desc">Select your Ishta Devata to customize divine focus, mantra, and offering word.</div>
+
+                                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "14px" }}>
+                                            {Object.entries(PRESETS).map(([key, p]) => (
+                                                <button
+                                                    key={key}
+                                                    className="btn btn-secondary btn-small"
+                                                    onClick={() => setState(s => ({ ...s, deityName: p.deityName, mantra: p.mantra, arpanamWord: p.arpanamWord }))}
+                                                >
+                                                    {p.deityName.split(" ")[0]} {p.deityName.split(" ")[1]}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <div className="input-group">
+                                            <label>Deity Name:</label>
+                                            <input
+                                                type="text"
+                                                value={state.deityName}
+                                                onChange={e => setState(s => ({ ...s, deityName: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div className="input-group">
+                                            <label>Mantra / Mahamantra:</label>
+                                            <input
+                                                type="text"
+                                                value={state.mantra}
+                                                onChange={e => setState(s => ({ ...s, mantra: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div className="input-group">
+                                            <label>Arpanam Offering Word:</label>
+                                            <input
+                                                type="text"
+                                                value={state.arpanamWord}
+                                                onChange={e => setState(s => ({ ...s, arpanamWord: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <button className="btn" onClick={() => setSettingsActiveSection(null)}>
+                                            ✓ Done
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Section: Audio & Bell */}
+                                {settingsActiveSection === "audio" && (
+                                    <div className="card">
+                                        <div className="card-title">🔔 Temple Bell Nudge</div>
+                                        <div className="card-desc">Set how often the app gently sounds the sacred temple bell to remind you of Bhagwan.</div>
+
+                                        <div className="input-group">
+                                            <label>Remembrance Bell Interval:</label>
+                                            <select
+                                                value={state.nudgeInterval}
+                                                onChange={e => setState(s => ({ ...s, nudgeInterval: Number(e.target.value) }))}
+                                            >
+                                                <option value={0}>Off (Manual only)</option>
+                                                <option value={5}>Every 5 Minutes</option>
+                                                <option value={15}>Every 15 Minutes</option>
+                                                <option value={30}>Every 30 Minutes</option>
+                                                <option value={60}>Every 60 Minutes (Hourly)</option>
+                                            </select>
+                                        </div>
+
+                                        <button
+                                            className="btn btn-secondary"
+                                            style={{ marginBottom: "14px" }}
+                                            onClick={() => playBellSound()}
+                                        >
+                                            🔔 Test Temple Bell Sound
+                                        </button>
+
+                                        <button className="btn" onClick={() => setSettingsActiveSection(null)}>
+                                            ✓ Done
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Section: Bhavas */}
+                                {settingsActiveSection === "bhavas" && (
+                                    <div className="card">
+                                        <div className="card-title">🌺 Manage Bhava Categories</div>
+                                        <div className="card-desc">
+                                            Customize the attitudes you anchor before starting an action. Add, edit, or remove your personal Bhavas.
+                                        </div>
+
+                                        <div style={{ marginBottom: "12px" }}>
+                                            {state.bhavaOptions.map((bhava, index) => (
+                                                <div key={index} className="category-manage-item">
+                                                    {editingBhavaIndex === index ? (
+                                                        <div style={{ display: "flex", gap: "6px", width: "100%" }}>
+                                                            <input
+                                                                type="text"
+                                                                value={editingBhavaValue}
+                                                                onChange={e => setEditingBhavaValue(e.target.value)}
+                                                                style={{ flex: 1, padding: "6px 8px" }}
+                                                            />
+                                                            <button className="btn btn-small" onClick={handleSaveEditBhavaCategory}>Save</button>
+                                                            <button className="btn btn-secondary btn-small" onClick={() => setEditingBhavaIndex(null)}>Cancel</button>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <span style={{ fontSize: "0.95rem" }}>{bhava}</span>
+                                                            <div style={{ display: "flex", gap: "6px" }}>
+                                                                <button
+                                                                    className="icon-action-btn"
+                                                                    title="Edit category"
+                                                                    onClick={() => handleEditBhavaCategory(index)}
+                                                                >
+                                                                    ✏️
+                                                                </button>
+                                                                <button
+                                                                    className="icon-action-btn delete"
+                                                                    title="Delete category"
+                                                                    onClick={() => handleDeleteBhavaCategory(bhava)}
+                                                                >
+                                                                    🗑️
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
+                                            <input
+                                                type="text"
+                                                value={newBhavaCategory}
+                                                onChange={e => setNewBhavaCategory(e.target.value)}
+                                                placeholder="e.g., Sharanagati Bhava (Surrender)"
+                                                style={{ flex: 1 }}
+                                            />
+                                            <button className="btn btn-small" onClick={handleAddBhavaCategory}>
+                                                ➕ Add
+                                            </button>
+                                        </div>
+
+                                        <button className="btn" onClick={() => setSettingsActiveSection(null)}>
+                                            ✓ Done
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Section: Appearance & Minimal Mode */}
+                                {settingsActiveSection === "appearance" && (
+                                    <div className="card">
+                                        <div className="card-title">🎨 Appearance & Minimal Mode</div>
+
+                                        <div className="input-group">
+                                            <label>Visual Aesthetic Theme:</label>
+                                            <select
+                                                value={state.theme}
+                                                onChange={e => setState(s => ({ ...s, theme: e.target.value }))}
+                                            >
+                                                <option value="light">Sacred Ashram (Warm Ivory & Gold)</option>
+                                                <option value="dark">Temple Midnight (OLED Dark & Amber)</option>
+                                            </select>
+                                        </div>
+
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", background: "var(--bg-accent)", borderRadius: "var(--radius-sm)", margin: "14px 0" }}>
+                                            <div>
+                                                <strong style={{ fontSize: "1rem", color: "var(--text-primary)" }}>✨ Ultra-Minimal Mode</strong>
+                                                <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginTop: "2px" }}>
+                                                    Hides header banner and dock completely for 100% pure focus.
+                                                </div>
+                                            </div>
+                                            <input
+                                                type="checkbox"
+                                                checked={ultraMinimal}
+                                                onChange={toggleUltraMinimal}
+                                                style={{ width: "22px", height: "22px", accentColor: "var(--saffron)", cursor: "pointer" }}
+                                            />
+                                        </div>
+
+                                        <button className="btn" onClick={() => setSettingsActiveSection(null)}>
+                                            ✓ Done
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Section: Sync */}
+                                {settingsActiveSection === "sync" && (
+                                    <div className="card">
+                                        <div className="card-title">☁️ Cloudflare D1 Cloud Sync</div>
+                                        <div className="card-desc">
+                                            Sync your japa, offerings, and custom collections seamlessly between your phone and laptop using your secret sync key.
+                                        </div>
+
+                                        <div className="input-group">
+                                            <label>Cloudflare D1 Sync Key:</label>
+                                            <input
+                                                type="text"
+                                                value={state.syncKey}
+                                                onChange={e => setState(s => ({ ...s, syncKey: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
+                                            <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => pullFromCloud(state.syncKey)}>
+                                                ⬇️ Pull from Cloud
+                                            </button>
+                                            <button className="btn btn-small" style={{ flex: 1 }} onClick={() => syncToCloud(state, state.syncKey)}>
+                                                ⬆️ Push to Cloud
+                                            </button>
+                                        </div>
+
+                                        <button className="btn" onClick={() => setSettingsActiveSection(null)}>
+                                            ✓ Done
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Section: Install */}
+                                {settingsActiveSection === "install" && (
+                                    <div className="card install-card-highlight">
+                                        <div className="card-title">
+                                            <span>📲 Install Nitya Smaran as App (PWA)</span>
+                                            <span style={{ fontSize: "0.82rem", color: isStandalone ? "var(--success)" : "var(--saffron)", fontWeight: 700 }}>
+                                                {isStandalone ? "✓ Installed" : "Installable"}
+                                            </span>
+                                        </div>
+                                        <div className="card-desc">
+                                            Install on your smartphone (iPhone / Android) or computer. Runs in full-screen standalone mode with offline support, instant launch, and haptic feedback like a native app.
+                                        </div>
+                                        {!isStandalone ? (
+                                            <button className="btn" onClick={handleInstallClick} style={{ marginTop: "6px" }}>
+                                                📲 Install App on this Device
+                                            </button>
+                                        ) : (
+                                            <div style={{ color: "var(--success)", fontWeight: 600, fontSize: "0.88rem", padding: "10px", background: "var(--bg-accent)", borderRadius: "var(--radius-sm)" }}>
+                                                ✓ You are currently running Nitya Smaran in installed standalone mode.
+                                            </div>
                                         )}
                                     </div>
-                                ))}
+                                )}
                             </div>
-
-                            <div style={{ display: "flex", gap: "5px" }}>
-                                <input
-                                    type="text"
-                                    value={newBhavaCategory}
-                                    onChange={e => setNewBhavaCategory(e.target.value)}
-                                    placeholder="e.g., Sharanagati Bhava (Surrender)"
-                                    style={{ flex: 1 }}
-                                />
-                                <button className="btn btn-small" onClick={handleAddBhavaCategory}>
-                                    ➕ Add
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Smaran Bell Interval & Theme */}
-                        <div className="card">
-                            <div className="card-title">🔔 Temple Bell Nudge & Theme</div>
-
-                            <div className="input-group">
-                                <label>Remembrance Bell Interval (Minutes):</label>
-                                <select
-                                    value={state.nudgeInterval}
-                                    onChange={e => setState(s => ({ ...s, nudgeInterval: Number(e.target.value) }))}
-                                >
-                                    <option value={0}>Off (Manual only)</option>
-                                    <option value={5}>Every 5 Minutes</option>
-                                    <option value={15}>Every 15 Minutes</option>
-                                    <option value={30}>Every 30 Minutes</option>
-                                    <option value={60}>Every 60 Minutes (Hourly)</option>
-                                </select>
-                            </div>
-
-                            <div className="input-group">
-                                <label>Visual Aesthetic Theme:</label>
-                                <select
-                                    value={state.theme}
-                                    onChange={e => setState(s => ({ ...s, theme: e.target.value }))}
-                                >
-                                    <option value="light">Sacred Ashram (Warm Ivory & Gold)</option>
-                                    <option value="dark">Temple Midnight (OLED Dark & Amber)</option>
-                                </select>
-                            </div>
-
-                            <div className="input-group">
-                                <label>Cloudflare D1 Sync Key:</label>
-                                <input
-                                    type="text"
-                                    value={state.syncKey}
-                                    onChange={e => setState(s => ({ ...s, syncKey: e.target.value }))}
-                                />
-                            </div>
-                        </div>
+                        )}
                     </section>
                 )}
             </main>
