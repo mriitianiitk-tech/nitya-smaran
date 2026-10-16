@@ -87,6 +87,7 @@ const DEFAULT_STATE = {
     karmas: [],
     bhavaOptions: DEFAULT_BHAVA_OPTIONS,
     sahasranamas: INITIAL_SAHASRANAMAS,
+    deities: PRESET_DEITIES,
     favoriteKeys: []
 };
 
@@ -171,6 +172,7 @@ export default function App() {
                     ...parsed,
                     bhavaOptions: parsed.bhavaOptions?.length ? parsed.bhavaOptions : DEFAULT_BHAVA_OPTIONS,
                     sahasranamas: parsed.sahasranamas?.length ? parsed.sahasranamas : INITIAL_SAHASRANAMAS,
+                    deities: Array.isArray(parsed.deities) && parsed.deities.length > 0 ? parsed.deities : PRESET_DEITIES,
                     favoriteKeys: Array.isArray(parsed.favoriteKeys) ? parsed.favoriteKeys : []
                 };
             } catch {
@@ -260,6 +262,15 @@ export default function App() {
     // Settings Screen Segregation State
     const [settingsActiveSection, setSettingsActiveSection] = useState(null);
 
+    // Library Scroll Container Ref for instant smooth top-reset
+    const libraryScrollRef = useRef(null);
+
+    useEffect(() => {
+        if (libraryScrollRef.current) {
+            libraryScrollRef.current.scrollTop = 0;
+        }
+    }, [librarySubTab, selectedCollectionId]);
+
     // PWA Install Prompt & Standalone Mode State
     const [deferredPrompt, setDeferredPrompt] = useState(null);
     const [isStandalone, setIsStandalone] = useState(false);
@@ -267,11 +278,17 @@ export default function App() {
 
     const t = I18N[state.lang] || I18N.mix;
 
+    // Deity management state
+    const [newDeityInput, setNewDeityInput] = useState("");
+    const [editingDeityName, setEditingDeityName] = useState(null);
+    const [editedDeityValue, setEditedDeityValue] = useState("");
+
     // All available deities list (presets + custom added)
     const allDeities = useMemo(() => {
+        const list = state.deities && state.deities.length > 0 ? state.deities : PRESET_DEITIES;
         const fromCollections = state.sahasranamas.map(s => s.deity).filter(Boolean);
-        return Array.from(new Set([...PRESET_DEITIES, ...fromCollections]));
-    }, [state.sahasranamas]);
+        return Array.from(new Set([...list, ...fromCollections]));
+    }, [state.deities, state.sahasranamas]);
 
     // Haptic vibration helper
     const triggerHaptic = useCallback((pattern = 25) => {
@@ -704,6 +721,87 @@ export default function App() {
         }));
     };
 
+    // Deity Management Helpers
+    const handleAddDeity = (nameToAdd) => {
+        const trimmed = (nameToAdd || newDeityInput).trim();
+        if (!trimmed) return;
+        if (allDeities.includes(trimmed)) {
+            alert(`"${trimmed}" already exists in the deities list.`);
+            return;
+        }
+        setState(prev => ({
+            ...prev,
+            deities: [...(prev.deities || PRESET_DEITIES), trimmed]
+        }));
+        setNewDeityInput("");
+    };
+
+    const handleEditDeity = (oldName, newName) => {
+        const trimmed = newName.trim();
+        if (!trimmed) {
+            alert("Deity name cannot be empty.");
+            return;
+        }
+        if (trimmed === oldName) {
+            setEditingDeityName(null);
+            return;
+        }
+        if (allDeities.includes(trimmed) && trimmed !== oldName) {
+            alert(`A deity named "${trimmed}" already exists.`);
+            return;
+        }
+        setState(prev => {
+            const curDeities = prev.deities || PRESET_DEITIES;
+            const updatedDeities = curDeities.map(d => d === oldName ? trimmed : d);
+            const updatedCollections = prev.sahasranamas.map(col => {
+                if (col.deity === oldName) {
+                    return { ...col, deity: trimmed };
+                }
+                return col;
+            });
+            return {
+                ...prev,
+                deities: updatedDeities,
+                sahasranamas: updatedCollections
+            };
+        });
+        setEditingDeityName(null);
+        setEditedDeityValue("");
+    };
+
+    const handleDeleteDeity = (deityName) => {
+        const matchingCollections = state.sahasranamas.filter(col => col.deity === deityName);
+        let msg = `Are you sure you want to delete "${deityName}"?`;
+        if (matchingCollections.length > 0) {
+            msg = `"${deityName}" is currently used in ${matchingCollections.length} Sahasranama(s):\n${matchingCollections.map(c => `• ${c.title}`).join("\n")}\n\nDeleting this deity will reassign these stotras to "सामान्य/अन्य". Proceed?`;
+        }
+        if (!confirm(msg)) return;
+
+        setState(prev => {
+            const curDeities = prev.deities || PRESET_DEITIES;
+            const updatedDeities = curDeities.filter(d => d !== deityName);
+            const updatedCollections = prev.sahasranamas.map(col => {
+                if (col.deity === deityName) {
+                    return { ...col, deity: "सामान्य/अन्य" };
+                }
+                return col;
+            });
+            return {
+                ...prev,
+                deities: updatedDeities,
+                sahasranamas: updatedCollections
+            };
+        });
+    };
+
+    const handleResetDeities = () => {
+        if (!confirm("Reset deity list back to original default deities?")) return;
+        setState(prev => ({
+            ...prev,
+            deities: PRESET_DEITIES
+        }));
+    };
+
     // Sahasranama Collection Helpers
     const handleAddCollection = () => {
         const title = newCollectionTitle.trim();
@@ -720,10 +818,17 @@ export default function App() {
             names: []
         };
 
-        setState(prev => ({
-            ...prev,
-            sahasranamas: [...prev.sahasranamas, newCol]
-        }));
+        setState(prev => {
+            const curDeities = prev.deities || PRESET_DEITIES;
+            const nextDeities = selectedDeityChoice === "__new__" && customDeityName.trim() && !curDeities.includes(customDeityName.trim())
+                ? [...curDeities, customDeityName.trim()]
+                : curDeities;
+            return {
+                ...prev,
+                deities: nextDeities,
+                sahasranamas: [...prev.sahasranamas, newCol]
+            };
+        });
         setNewCollectionTitle("");
         setCustomDeityName("");
         setSelectedDeityChoice("श्री विष्णु");
@@ -1099,17 +1204,19 @@ export default function App() {
 
     return (
         <div className={`app-wrapper ${ultraMinimal ? "ultra-minimal" : ""} ${isImmersiveMode ? "immersive-mode" : ""}`}>
-            {/* Subtle Floating Exit Button for Ultra-Minimal Mode */}
+            {/* Dedicated Slim Top Bar for Ultra-Minimal Mode (No Content Overlap) */}
             {ultraMinimal && (
-                <button
-                    className="minimal-exit-btn"
-                    onClick={toggleUltraMinimal}
-                    title="Exit Ultra-Minimal Mode"
-                    aria-label="Exit Ultra-Minimal Mode"
-                >
-                    <span>✨</span>
-                    <span>Standard UI</span>
-                </button>
+                <div className="ultra-minimal-topbar">
+                    <span className="minimal-status-tag">✨ Ultra-Minimal Mode</span>
+                    <button
+                        className="minimal-exit-btn"
+                        onClick={toggleUltraMinimal}
+                        title="Return to Standard Interface"
+                        aria-label="Return to Standard Interface"
+                    >
+                        <span>Standard UI ✕</span>
+                    </button>
+                </div>
             )}
 
             {/* App Header (Completely hidden in Ultra-Minimal mode) */}
@@ -1531,18 +1638,18 @@ export default function App() {
                     TAB 3: SAHASRANAMA LIBRARY, SEARCH & GAMES
                    ======================================================== */}
                 {activeTab === "library" && (
-                    <section className="tab-pane active scrollable">
-                        {/* Subtab Switcher */}
+                    <section className="tab-pane active library-pane">
+                        {/* Subtab Switcher: Pinned permanently at the top of Library with no sticky/scrolling bugs */}
                         <div className="subtab-bar">
                             <button
                                 className={`subtab-btn ${librarySubTab === "search" ? "active" : ""}`}
-                                onClick={() => setLibrarySubTab("search")}
+                                onClick={() => { setLibrarySubTab("search"); setSelectedCollectionId(null); }}
                             >
                                 <span>🔍</span>
                                 <span>Search</span>
                             </button>
                             <button
-                                className={`subtab-btn ${librarySubTab === "collections" ? "active" : ""}`}
+                                className={`subtab-btn ${librarySubTab === "collections" && !selectedCollectionId ? "active" : ""}`}
                                 onClick={() => { setLibrarySubTab("collections"); setSelectedCollectionId(null); }}
                             >
                                 <span>📚</span>
@@ -1550,26 +1657,29 @@ export default function App() {
                             </button>
                             <button
                                 className={`subtab-btn ${librarySubTab === "favorites" ? "active" : ""}`}
-                                onClick={() => setLibrarySubTab("favorites")}
+                                onClick={() => { setLibrarySubTab("favorites"); setSelectedCollectionId(null); }}
                             >
                                 <span>❤️</span>
                                 <span>Favorites ({allFavoriteNames.length})</span>
                             </button>
                             <button
                                 className={`subtab-btn ${librarySubTab === "review" ? "active" : ""}`}
-                                onClick={() => { setLibrarySubTab("review"); setFlashcardsActive(false); setReviewIndex(0); setShowReviewMeaning(false); }}
+                                onClick={() => { setLibrarySubTab("review"); setSelectedCollectionId(null); setFlashcardsActive(false); setReviewIndex(0); setShowReviewMeaning(false); }}
                             >
                                 <span>🎴</span>
                                 <span>Flashcards</span>
                             </button>
                             <button
                                 className={`subtab-btn ${librarySubTab === "quiz" ? "active" : ""}`}
-                                onClick={() => { setLibrarySubTab("quiz"); setQuizActive(false); }}
+                                onClick={() => { setLibrarySubTab("quiz"); setSelectedCollectionId(null); setQuizActive(false); }}
                             >
                                 <span>🎮</span>
                                 <span>Quiz Game</span>
                             </button>
                         </div>
+
+                        {/* Dedicated Scroll Container for Library Subtabs with Automatic Top-Reset */}
+                        <div className="library-body scrollable" ref={libraryScrollRef}>
 
                         {/* ========================================================
                             SUBTAB 0: DIVINE NAME SEARCH (SCROLLABLE CARDS)
@@ -1799,7 +1909,7 @@ export default function App() {
                                                         className="btn-screen-back"
                                                         onClick={() => { setSelectedCollectionId(null); setStotraSearchQuery(""); }}
                                                     >
-                                                        ◀ Back
+                                                        ◀ Back to Collections
                                                     </button>
                                                     <div className="sub-screen-title-wrap">
                                                         <div className="sub-screen-title">{col.title}</div>
@@ -2288,6 +2398,7 @@ export default function App() {
                                 )}
                             </div>
                         )}
+                        </div>
                     </section>
                 )}
 
@@ -2307,6 +2418,17 @@ export default function App() {
                                             <div>
                                                 <div className="settings-item-title">Deity & Divine Arpanam</div>
                                                 <div className="settings-item-desc">{state.deityName} • {state.arpanamWord}</div>
+                                            </div>
+                                        </div>
+                                        <span className="settings-item-arrow">➔</span>
+                                    </div>
+
+                                    <div className="settings-menu-item" onClick={() => setSettingsActiveSection("deities")}>
+                                        <div className="settings-item-left">
+                                            <span className="settings-item-icon">🔱</span>
+                                            <div>
+                                                <div className="settings-item-title">Manage Sahasranama Deities</div>
+                                                <div className="settings-item-desc">{allDeities.length} deities configured • Edit, rename & delete</div>
                                             </div>
                                         </div>
                                         <span className="settings-item-arrow">➔</span>
@@ -2385,6 +2507,7 @@ export default function App() {
                                     <div className="sub-screen-title-wrap">
                                         <div className="sub-screen-title">
                                             {settingsActiveSection === "deity" && "🕉️ Deity & Divine Arpanam"}
+                                            {settingsActiveSection === "deities" && "🔱 Manage Sahasranama Deities"}
                                             {settingsActiveSection === "audio" && "🔔 Temple Bell & Sound"}
                                             {settingsActiveSection === "bhavas" && "🌺 Bhava Categories"}
                                             {settingsActiveSection === "appearance" && "🎨 Appearance & Minimal Mode"}
@@ -2637,6 +2760,122 @@ export default function App() {
                                         )}
                                     </div>
                                 )}
+
+                                {/* Section: Deities Management */}
+                                {settingsActiveSection === "deities" && (
+                                    <div className="card">
+                                        <div className="card-title">🔱 Manage Deities (देवता सूची)</div>
+                                        <div className="card-desc">
+                                            Add, rename, or delete deities for your Sahasranamas and Stotras. Renaming updates all associated stotra collections automatically.
+                                        </div>
+
+                                        {/* Quick Add Deity */}
+                                        <div className="deity-add-box">
+                                            <input
+                                                type="text"
+                                                value={newDeityInput}
+                                                onChange={e => setNewDeityInput(e.target.value)}
+                                                placeholder="Enter new deity name (e.g. माँ सरस्वती, श्री अय्यप्पा)"
+                                                onKeyDown={e => e.key === "Enter" && handleAddDeity()}
+                                            />
+                                            <button
+                                                className="btn btn-small"
+                                                onClick={() => handleAddDeity()}
+                                            >
+                                                ➕ Add
+                                            </button>
+                                        </div>
+
+                                        {/* List of Deities */}
+                                        <div className="deity-mgmt-list">
+                                            {allDeities.map(deityName => {
+                                                const matchingCols = state.sahasranamas.filter(c => c.deity === deityName);
+                                                const isEditing = editingDeityName === deityName;
+
+                                                return (
+                                                    <div key={deityName} className="deity-mgmt-card">
+                                                        {isEditing ? (
+                                                            <div className="deity-mgmt-edit-row">
+                                                                <input
+                                                                    type="text"
+                                                                    className="deity-mgmt-edit-input"
+                                                                    value={editedDeityValue}
+                                                                    onChange={e => setEditedDeityValue(e.target.value)}
+                                                                    autoFocus
+                                                                    onKeyDown={e => {
+                                                                        if (e.key === "Enter") handleEditDeity(deityName, editedDeityValue);
+                                                                        if (e.key === "Escape") setEditingDeityName(null);
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    className="btn btn-small"
+                                                                    onClick={() => handleEditDeity(deityName, editedDeityValue)}
+                                                                >
+                                                                    ✓ Save
+                                                                </button>
+                                                                <button
+                                                                    className="btn btn-secondary btn-small"
+                                                                    onClick={() => setEditingDeityName(null)}
+                                                                >
+                                                                    ✕ Cancel
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <div className="deity-mgmt-info">
+                                                                    <div className="deity-mgmt-name">🔱 {deityName}</div>
+                                                                    <div className="deity-mgmt-count">
+                                                                        {matchingCols.length > 0
+                                                                            ? `Used in ${matchingCols.length} stotra: ${matchingCols.map(c => c.title.split("(")[0].trim()).join(", ")}`
+                                                                            : "Not currently assigned to any stotra"}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="deity-mgmt-actions">
+                                                                    <button
+                                                                        className="deity-mgmt-btn"
+                                                                        onClick={() => {
+                                                                            setEditingDeityName(deityName);
+                                                                            setEditedDeityValue(deityName);
+                                                                        }}
+                                                                        title={`Rename ${deityName}`}
+                                                                        aria-label={`Rename ${deityName}`}
+                                                                    >
+                                                                        ✏️ Rename
+                                                                    </button>
+                                                                    <button
+                                                                        className="deity-mgmt-btn delete"
+                                                                        onClick={() => handleDeleteDeity(deityName)}
+                                                                        title={`Delete ${deityName}`}
+                                                                        aria-label={`Delete ${deityName}`}
+                                                                    >
+                                                                        🗑️ Delete
+                                                                    </button>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div style={{ display: "flex", gap: "8px", borderTop: "1px solid var(--border-light)", paddingTop: "14px" }}>
+                                            <button
+                                                className="btn btn-secondary btn-small"
+                                                style={{ flex: 1 }}
+                                                onClick={handleResetDeities}
+                                            >
+                                                🔄 Restore Defaults
+                                            </button>
+                                            <button
+                                                className="btn btn-small"
+                                                style={{ flex: 1 }}
+                                                onClick={() => setSettingsActiveSection(null)}
+                                            >
+                                                ✓ Done
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </section>
@@ -2699,7 +2938,22 @@ export default function App() {
                             />
                         </div>
                         <div className="input-group">
-                            <label>Deity (Select existing or add new):</label>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
+                                <label style={{ margin: 0 }}>Deity (Select or add new):</label>
+                                <button
+                                    type="button"
+                                    className="btn-screen-back"
+                                    style={{ padding: "3px 8px", fontSize: "0.75rem", fontWeight: 700 }}
+                                    onClick={() => {
+                                        setShowAddCollectionModal(false);
+                                        setActiveTab("settings");
+                                        setSettingsActiveSection("deities");
+                                    }}
+                                    title="Edit, rename, or delete deities in Settings"
+                                >
+                                    ⚙️ Manage Deities
+                                </button>
+                            </div>
                             <select
                                 value={selectedDeityChoice}
                                 onChange={e => setSelectedDeityChoice(e.target.value)}
