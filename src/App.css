@@ -1774,3 +1774,783 @@ nav.bottom-dock {
     font-weight: 700;
     padding: 6px 10px;
 }
+
+/* ==========================================================================
+   SHLOKA RECITATION & MEANING OVERLAY STYLES
+   Minimal, Sacred, Smartphone-Optimized
+   ========================================================================== */
+
+/* Recitation Screen 1 (Selector & Stotra Management) */
+.recite-hub-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
+}
+
+.recite-stotra-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-top: 6px;
+}
+
+.recite-stotra-status-badge.ready {
+    background: rgba(46, 125, 50, 0.12);
+    color: var(--success);
+}
+
+.recite-stotra-status-badge.empty {
+    background: rgba(217, 107, 39, 0.12);
+    color: var(--saffron);
+}
+
+/* Recitation Screen 2 (Chanting flow - Dedicated Minimal View) */
+.recite-screen-chanting {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    position: relative;
+    padding-bottom: 80px; /* space for sticky meaning card */
+}
+
+.recite-minimal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg-accent-soft);
+    border-radius: var(--radius-md);
+    margin-bottom: 12px;
+    border: 1px solid var(--border-light);
+}
+
+.recite-header-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 45%;
+}
+
+.recite-mode-pill {
+    display: flex;
+    background: var(--bg-card);
+    border-radius: var(--radius-full);
+    padding: 2px;
+    border: 1px solid var(--border);
+}
+
+.recite-mode-btn {
+    border: none;
+    background: none;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    border-radius: var(--radius-full);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.recite-mode-btn.active {
+    background: var(--saffron);
+    color: #ffffff;
+}
+
+/* Single Shloka View */
+.single-shloka-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 0;
+}
+
+.shloka-progress-wrap {
+    width: 100%;
+    height: 4px;
+    background: var(--border-light);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: 14px;
+}
+
+.shloka-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--saffron));
+    transition: width 0.25s ease;
+}
+
+.shloka-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.shloka-badge {
+    background: var(--bg-accent);
+    color: var(--saffron);
+    border: 1px solid var(--border);
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-size: 0.85rem;
+    font-weight: 800;
+}
+
+.shloka-text-card {
+    background: var(--bg-card);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px 18px;
+    box-shadow: var(--shadow);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 16px;
+    flex: 1;
+    min-height: 180px;
+}
+
+.shloka-line {
+    font-size: 1.45rem;
+    line-height: 1.9;
+    color: var(--text-primary);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+@media (max-width: 480px) {
+    .shloka-line {
+        font-size: 1.25rem;
+        line-height: 1.8;
+    }
+}
+
+/* Matched and interactive words in Shlokas */
+.shloka-word {
+    display: inline-block;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 1px 3px;
+    margin: 0 1.5px;
+    transition: all 0.15s ease;
+}
+
+.shloka-word.matched {
+    color: var(--saffron);
+    text-decoration: underline;
+    text-decoration-color: var(--saffron-glow);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+    font-weight: 700;
+}
+
+.shloka-word.matched:hover,
+.shloka-word.matched.selected {
+    background: var(--saffron-light);
+    color: var(--saffron-hover);
+    box-shadow: 0 0 10px var(--saffron-glow);
+}
+
+.shloka-punct {
+    display: inline-block;
+    color: var(--gold);
+    font-weight: 700;
+    padding: 0 4px;
+}
+
+/* Shloka Navigation Footer */
+.shloka-nav-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.shloka-nav-btn {
+    flex: 1;
+    padding: 12px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.shloka-nav-btn:hover:not(:disabled) {
+    border-color: var(--saffron);
+    color: var(--saffron);
+}
+
+.shloka-nav-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Full Stotra View */
+.full-stotra-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: calc(100vh - 220px);
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.full-stotra-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px 14px;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+}
+
+.full-stotra-num-badge {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--gold);
+    background: var(--bg-accent);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+}
+
+/* Sticky Meaning Card (Pinned bottom popover) */
+.sticky-meaning-card {
+    position: fixed;
+    bottom: calc(var(--dock-height) + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 24px);
+    max-width: 520px;
+    background: var(--bg-card);
+    border: 1.5px solid var(--saffron);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+    z-index: 250;
+    animation: slideUpMeaningCard 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUpMeaningCard {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 18px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+.meaning-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    border-bottom: 1px dashed var(--border-light);
+    padding-bottom: 6px;
+}
+
+.meaning-card-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--saffron);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.meaning-token-tag {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.meaning-card-close {
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+}
+
+.meaning-card-close:hover {
+    color: var(--danger);
+}
+
+.meaning-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.meaning-lang-row {
+    font-size: 0.92rem;
+    line-height: 1.45;
+    color: var(--text-primary);
+}
+
+.meaning-lang-label {
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-right: 6px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Sync Modal Styles */
+.sync-option-card {
+    background: var(--bg-accent-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    margin-bottom: 12px;
+    transition: all 0.15s ease;
+}
+
+.sync-option-card:hover {
+    border-color: var(--saffron);
+    background: var(--bg-accent);
+}
+
+.sync-card-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.sync-card-desc {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin-bottom: 10px;
+}
+
+/* Quick Sync Cluster in Header */
+.sync-quick-cluster {
+    display: inline-flex;
+    align-items: center;
+    background: var(--bg-accent);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    padding: 1px 3px;
+    gap: 2px;
+    transition: all 0.15s ease;
+}
+
+.sync-quick-cluster:hover {
+    border-color: var(--saffron);
+}
+
+.sync-quick-btn {
+    background: transparent;
+    border: none;
+    padding: 2px 7px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1.2;
+}
+
+.sync-quick-btn:hover {
+    background: var(--saffron);
+    color: #ffffff;
+}
+
+.sync-quick-cluster .sync-status-pill {
+    border: none;
+    background: transparent;
+    padding: 2px 5px;
+    font-size: 0.68rem;
+}
+
+/* Sahasranama Japa Font Sizes */
+.sacred-name-text.nama-size-sm {
+    font-size: clamp(1.6rem, 6.5vw, 2.6rem);
+}
+.sacred-name-text.nama-size-md {
+    font-size: clamp(2.1rem, 9.5vw, 3.8rem);
+}
+.sacred-name-text.nama-size-lg {
+    font-size: clamp(2.6rem, 12vw, 4.6rem);
+}
+.sacred-name-text.nama-size-xl {
+    font-size: clamp(3.1rem, 14vw, 5.4rem);
+}
+
+/* Auto-Play Progress Track & Pill in Nama View */
+.nama-autoplay-track {
+    width: 100%;
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+.nama-autoplay-progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    position: relative;
+}
+
+.nama-autoplay-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--saffron));
+    border-radius: var(--radius-full);
+    transition: width 0.05s linear;
+}
+
+.nama-autoplay-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--saffron);
+    padding: 2px 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Auto-Play Bubble Button in Bottom Panel */
+.btn-autoplay-bubble {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 12px;
+    height: 38px;
+    border-radius: var(--radius-full);
+    background: var(--bg-accent);
+    border: 1px solid var(--border);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-autoplay-bubble:hover {
+    border-color: var(--saffron);
+    color: var(--saffron);
+}
+
+.btn-autoplay-bubble.active {
+    background: linear-gradient(135deg, var(--saffron), #cb5f1d);
+    color: #ffffff;
+    border-color: var(--gold);
+    box-shadow: 0 0 12px var(--saffron-glow);
+    animation: pulseGlow 2s infinite alternate;
+}
+
+@keyframes pulseGlow {
+    from {
+        box-shadow: 0 0 4px var(--saffron-glow);
+    }
+    to {
+        box-shadow: 0 0 14px var(--saffron-glow);
+    }
+}
+
+/* Controls Modal Section Cards */
+.controls-section-card {
+    background: var(--bg-accent-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+}
+
+.controls-section-title {
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.btn-pill-choice {
+    padding: 3px 9px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-pill-choice:hover {
+    border-color: var(--saffron);
+    color: var(--saffron);
+}
+
+.btn-pill-choice.active {
+    background: var(--saffron);
+    color: #ffffff;
+    border-color: var(--saffron);
+}
+
+.checkbox-control-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox-control-row input[type="checkbox"],
+.checkbox-control-row input[type="radio"] {
+    accent-color: var(--saffron);
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+/* Quick Sync Cluster in Header */
+.sync-quick-cluster {
+    display: inline-flex;
+    align-items: center;
+    background: var(--bg-accent);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    padding: 1px 3px;
+    gap: 2px;
+    transition: all 0.15s ease;
+}
+
+.sync-quick-cluster:hover {
+    border-color: var(--saffron);
+}
+
+.sync-quick-btn {
+    background: transparent;
+    border: none;
+    padding: 2px 7px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1.2;
+}
+
+.sync-quick-btn:hover {
+    background: var(--saffron);
+    color: #ffffff;
+}
+
+.sync-quick-cluster .sync-status-pill {
+    border: none;
+    background: transparent;
+    padding: 2px 5px;
+    font-size: 0.68rem;
+}
+
+/* Sahasranama Japa Font Sizes */
+.sacred-name-text.nama-size-sm {
+    font-size: clamp(1.6rem, 6.5vw, 2.6rem);
+}
+.sacred-name-text.nama-size-md {
+    font-size: clamp(2.1rem, 9.5vw, 3.8rem);
+}
+.sacred-name-text.nama-size-lg {
+    font-size: clamp(2.6rem, 12vw, 4.6rem);
+}
+.sacred-name-text.nama-size-xl {
+    font-size: clamp(3.1rem, 14vw, 5.4rem);
+}
+
+/* Auto-Play Progress Track & Pill in Nama View */
+.nama-autoplay-track {
+    width: 100%;
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+.nama-autoplay-progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    position: relative;
+}
+
+.nama-autoplay-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--saffron));
+    border-radius: var(--radius-full);
+    transition: width 0.05s linear;
+}
+
+.nama-autoplay-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--saffron);
+    padding: 2px 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Auto-Play Bubble Button in Bottom Panel */
+.btn-autoplay-bubble {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 12px;
+    height: 38px;
+    border-radius: var(--radius-full);
+    background: var(--bg-accent);
+    border: 1px solid var(--border);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-autoplay-bubble:hover {
+    border-color: var(--saffron);
+    color: var(--saffron);
+}
+
+.btn-autoplay-bubble.active {
+    background: linear-gradient(135deg, var(--saffron), #cb5f1d);
+    color: #ffffff;
+    border-color: var(--gold);
+    box-shadow: 0 0 12px var(--saffron-glow);
+    animation: pulseGlow 2s infinite alternate;
+}
+
+@keyframes pulseGlow {
+    from {
+        box-shadow: 0 0 4px var(--saffron-glow);
+    }
+    to {
+        box-shadow: 0 0 14px var(--saffron-glow);
+    }
+}
+
+/* Controls Modal Section Cards */
+.controls-section-card {
+    background: var(--bg-accent-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+}
+
+.controls-section-title {
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.btn-pill-choice {
+    padding: 3px 9px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-pill-choice:hover {
+    border-color: var(--saffron);
+    color: var(--saffron);
+}
+
+.btn-pill-choice.active {
+    background: var(--saffron);
+    color: #ffffff;
+    border-color: var(--saffron);
+}
+
+.checkbox-control-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox-control-row input[type="checkbox"],
+.checkbox-control-row input[type="radio"] {
+    accent-color: var(--saffron);
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}

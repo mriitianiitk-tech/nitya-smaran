@@ -74,6 +74,7 @@ const INITIAL_SAHASRANAMAS = [
 
 const DEFAULT_STATE = {
     syncKey: "sagar-nitya-smaran-108",
+    syncStrategy: "merge", // 'merge' | 'overwrite'
     deityName: "🙏 श्री सीताराम (Sri Sita-Ram)",
     mantra: "श्री राम जय राम जय जय राम",
     arpanamWord: "श्री सीतारामार्पणमस्तु",
@@ -119,6 +120,226 @@ const PRESETS = {
     }
 };
 
+// ==========================================================================
+// SANSKRIT SHLOKA & NAME MATCHING UTILITIES
+// ==========================================================================
+export function cleanSanskritWord(w) {
+    if (!w) return "";
+    return String(w)
+        .replace(/[\u0964\u0965\.,!?;:()\[\]{}"'\\\/–—_\-*#~`]/g, "")
+        .replace(/[\d\u0966-\u096F]/g, "")
+        .trim();
+}
+
+export function normalizeSanskritStem(w) {
+    if (!w) return "";
+    let s = cleanSanskritWord(w);
+    s = s.replace(/म्$/g, "");
+    s = s.replace(/ं$/g, "");
+    s = s.replace(/[ःर्स्श्ष्]$/g, "");
+    s = s.replace(/ो$/g, "");
+    return s;
+}
+
+// Merge helper for Cloudflare D1 Cloud Sync: Combines local & cloud states without data loss
+export function mergeSyncStates(local, cloud) {
+    if (!cloud) return local;
+
+    // Merge Sahasranama collections by id
+    const localCols = Array.isArray(local.sahasranamas) ? local.sahasranamas : [];
+    const cloudCols = Array.isArray(cloud.sahasranamas) ? cloud.sahasranamas : [];
+    const colMap = new Map();
+
+    localCols.forEach(col => colMap.set(col.id, { ...col }));
+
+    cloudCols.forEach(cloudCol => {
+        if (!colMap.has(cloudCol.id)) {
+            colMap.set(cloudCol.id, cloudCol);
+        } else {
+            const localCol = colMap.get(cloudCol.id);
+            const mergedNames = [...(localCol.names || [])];
+            const existingNameStems = new Set(mergedNames.map(n => cleanSanskritWord(n.name)));
+            (cloudCol.names || []).forEach(cn => {
+                if (!existingNameStems.has(cleanSanskritWord(cn.name))) {
+                    mergedNames.push(cn);
+                }
+            });
+            colMap.set(cloudCol.id, {
+                ...localCol,
+                ...cloudCol,
+                title: cloudCol.title || localCol.title,
+                deity: cloudCol.deity || localCol.deity,
+                rawStotraText: (cloudCol.rawStotraText?.length || 0) > (localCol.rawStotraText?.length || 0)
+                    ? cloudCol.rawStotraText
+                    : localCol.rawStotraText,
+                names: mergedNames
+            });
+        }
+    });
+
+    // Merge karmas (deduplicate by id or date+action)
+    const localKarmas = Array.isArray(local.karmas) ? local.karmas : [];
+    const cloudKarmas = Array.isArray(cloud.karmas) ? cloud.karmas : [];
+    const karmaMap = new Map();
+    localKarmas.forEach(k => karmaMap.set(k.id || `${k.date}-${k.action}`, k));
+    cloudKarmas.forEach(k => {
+        const key = k.id || `${k.date}-${k.action}`;
+        if (!karmaMap.has(key)) {
+            karmaMap.set(key, k);
+        }
+    });
+
+    // Merge favoriteKeys
+    const localFavs = Array.isArray(local.favoriteKeys) ? local.favoriteKeys : [];
+    const cloudFavs = Array.isArray(cloud.favoriteKeys) ? cloud.favoriteKeys : [];
+    const mergedFavs = Array.from(new Set([...localFavs, ...cloudFavs]));
+
+    // Merge deities
+    const localDeities = Array.isArray(local.deities) ? local.deities : [];
+    const cloudDeities = Array.isArray(cloud.deities) ? cloud.deities : [];
+    const mergedDeities = Array.from(new Set([...localDeities, ...cloudDeities]));
+
+    // Merge bhava options
+    const localBhavas = Array.isArray(local.bhavaOptions) ? local.bhavaOptions : [];
+    const cloudBhavas = Array.isArray(cloud.bhavaOptions) ? cloud.bhavaOptions : [];
+    const mergedBhavas = Array.from(new Set([...localBhavas, ...cloudBhavas]));
+
+    // Japa totals: take higher value to ensure no beads are lost
+    const maxTotalJapa = Math.max(Number(local.totalJapa) || 0, Number(cloud.totalJapa) || 0);
+    const maxTodayMalas = Math.max(Number(local.todayMalas) || 0, Number(cloud.todayMalas) || 0);
+
+    return {
+        ...cloud,
+        ...local,
+        totalJapa: maxTotalJapa,
+        todayMalas: maxTodayMalas,
+        sahasranamas: Array.from(colMap.values()),
+        karmas: Array.from(karmaMap.values()),
+        favoriteKeys: mergedFavs,
+        deities: mergedDeities.length > 0 ? mergedDeities : local.deities,
+        bhavaOptions: mergedBhavas.length > 0 ? mergedBhavas : local.bhavaOptions
+    };
+}
+
+export function getMeaningsForToken(token, namesList) {
+    if (!token || !namesList || namesList.length === 0) return [];
+    const clean = cleanSanskritWord(token);
+    if (!clean || clean.length < 2) return [];
+
+    // 1. Direct or clean exact match
+    const exact = namesList.find(n => n.name === token || cleanSanskritWord(n.name) === clean);
+    if (exact) return [exact];
+
+    // 2. Normalized Sanskrit stem match (trailing visarga, sandhi 'r' / 's', anusvara)
+    const norm = normalizeSanskritStem(clean);
+    const stemMatch = namesList.find(n => normalizeSanskritStem(cleanSanskritWord(n.name)) === norm);
+    if (stemMatch) return [stemMatch];
+
+    // 3. Substring / compound word matching
+    if (clean.length >= 3) {
+        const compounds = namesList.filter(n => {
+            const nClean = cleanSanskritWord(n.name);
+            return nClean.length >= 3 && clean.includes(nClean);
+        });
+        if (compounds.length > 0) return compounds;
+
+        const reverse = namesList.find(n => {
+            const nClean = cleanSanskritWord(n.name);
+            return nClean.length >= 3 && nClean.includes(clean);
+        });
+        if (reverse) return [reverse];
+    }
+
+    return [];
+}
+
+export function devanagariToNumber(str) {
+    if (!str) return 0;
+    const devanagariDigits = "०१२३४५६७८९";
+    let res = "";
+    for (const char of String(str)) {
+        const idx = devanagariDigits.indexOf(char);
+        if (idx !== -1) res += idx;
+        else if (/[0-9]/.test(char)) res += char;
+    }
+    return parseInt(res, 10) || 0;
+}
+
+export function numberToDevanagari(num) {
+    const devanagariDigits = ["०", "१", "२", "३", "४", "५", "६", "७", "८", "९"];
+    return String(num).split("").map(d => devanagariDigits[parseInt(d, 10)] || d).join("");
+}
+
+export function splitVerseIntoLines(verse) {
+    const rawLines = verse.split("\n").map(l => l.trim()).filter(Boolean);
+    const finalLines = [];
+    for (const line of rawLines) {
+        if (line.includes("।") && !line.endsWith("।")) {
+            const parts = line.split("।").map(p => p.trim()).filter(Boolean);
+            parts.forEach((p, i) => {
+                finalLines.push(i === 0 ? p + " ।" : p);
+            });
+        } else {
+            finalLines.push(line);
+        }
+    }
+    return finalLines.length > 0 ? finalLines : [verse];
+}
+
+export function parseStotraText(rawText) {
+    if (!rawText || !rawText.trim()) return [];
+    const text = rawText.replace(/\r\n/g, "\n").trim();
+    const endMarkerRegex = /(?:॥|\|\|)\s*([0-9\u0966-\u096F]+)\s*(?:॥|\|\|)/g;
+    const shlokas = [];
+    let lastIndex = 0;
+    let match;
+    let fallbackNum = 1;
+
+    while ((match = endMarkerRegex.exec(text)) !== null) {
+        const verseContent = text.slice(lastIndex, match.index).trim();
+        const shlokaNumRaw = match[1];
+        const shlokaNum = devanagariToNumber(shlokaNumRaw) || fallbackNum;
+
+        if (verseContent) {
+            shlokas.push({
+                shlokaNum,
+                shlokaNumDisplay: shlokaNumRaw,
+                rawVerse: verseContent,
+                lines: splitVerseIntoLines(verseContent)
+            });
+            fallbackNum = shlokaNum + 1;
+        }
+        lastIndex = match.index + match[0].length;
+    }
+
+    const remaining = text.slice(lastIndex).trim();
+    if (remaining) {
+        if (shlokas.length === 0) {
+            const blocks = text.split(/\n\s*\n+/).map(b => b.trim()).filter(Boolean);
+            blocks.forEach((block, idx) => {
+                const numMatch = block.match(/^([0-9\u0966-\u096F]+)[.)\s-]/);
+                const sNum = numMatch ? (devanagariToNumber(numMatch[1]) || (idx + 1)) : (idx + 1);
+                const cleanBlock = numMatch ? block.replace(/^([0-9\u0966-\u096F]+)[.)\s-]+/, "").trim() : block;
+                shlokas.push({
+                    shlokaNum: sNum,
+                    shlokaNumDisplay: sNum.toString(),
+                    rawVerse: cleanBlock,
+                    lines: splitVerseIntoLines(cleanBlock)
+                });
+            });
+        } else {
+            shlokas.push({
+                shlokaNum: fallbackNum,
+                shlokaNumDisplay: fallbackNum.toString(),
+                rawVerse: remaining,
+                lines: splitVerseIntoLines(remaining)
+            });
+        }
+    }
+
+    return shlokas;
+}
+
 const I18N = {
     mix: {
         lblNewSankalpa: "🌺 Dedicated Action (Sankalpa)",
@@ -129,6 +350,7 @@ const I18N = {
         lblTodaysYajna: "🔥 Today's Dedicated Actions",
         descTodaysYajna: "Click Arpanam to offer the effort and outcome at Bhagwan's feet.",
         navNama: "Nama Smaran",
+        navRecite: "Recitation",
         navKarma: "Karma Yoga",
         navLibrary: "Library",
         navSettings: "Settings"
@@ -142,6 +364,7 @@ const I18N = {
         lblTodaysYajna: "🔥 आज का कर्म-यज्ञ",
         descTodaysYajna: "कार्य पूर्ण होने पर 'अर्पणम्' करके फल भगवान को समर्पित करें।",
         navNama: "नाम स्मरण",
+        navRecite: "श्लोक पठन",
         navKarma: "कर्म योग",
         navLibrary: "ग्रन्थ सूची",
         navSettings: "सेटिंग्स"
@@ -155,6 +378,7 @@ const I18N = {
         lblTodaysYajna: "🔥 Dedicated Actions Today",
         descTodaysYajna: "Offer your action and its fruit back to the Divine.",
         navNama: "Nama Smaran",
+        navRecite: "Recitation",
         navKarma: "Karma Yoga",
         navLibrary: "Library",
         navSettings: "Settings"
@@ -170,6 +394,7 @@ export default function App() {
                 return {
                     ...DEFAULT_STATE,
                     ...parsed,
+                    syncStrategy: parsed.syncStrategy || "merge",
                     bhavaOptions: Array.isArray(parsed.bhavaOptions) && parsed.bhavaOptions.length > 0 ? parsed.bhavaOptions : DEFAULT_BHAVA_OPTIONS,
                     sahasranamas: Array.isArray(parsed.sahasranamas) ? parsed.sahasranamas : INITIAL_SAHASRANAMAS,
                     deities: Array.isArray(parsed.deities) && parsed.deities.length > 0 ? parsed.deities : PRESET_DEITIES,
@@ -196,8 +421,39 @@ export default function App() {
     // Fullscreen Nama Smaran State (supports 'all', 'deity:...', or 'col:...')
     const [fsSelectedSource, setFsSelectedSource] = useState("all");
     const [fsNameIndex, setFsNameIndex] = useState(0);
-    const [fsShowMeaning, setFsShowMeaning] = useState(false);
+    const [fsShowMeaning, setFsShowMeaning] = useState(true);
     const [fsRandomMode, setFsRandomMode] = useState(false);
+
+    // Auto-Play & Display Control States in Sahasranama Japa
+    const [autoPlayActive, setAutoPlayActive] = useState(false);
+    const [autoPlayInterval, setAutoPlayInterval] = useState(() => {
+        return Number(localStorage.getItem("nityaAutoPlayInterval")) || 3;
+    });
+    const [autoPlayStopCondition, setAutoPlayStopCondition] = useState(() => {
+        return localStorage.getItem("nityaAutoPlayStop") || "continuous"; // 'continuous' | 'mala' | 'collection'
+    });
+    const [autoPlayCountBeads, setAutoPlayCountBeads] = useState(() => {
+        return localStorage.getItem("nityaAutoPlayCountBeads") !== "false";
+    });
+    const [autoPlayProgress, setAutoPlayProgress] = useState(0);
+
+    const [namaFontSize, setNamaFontSize] = useState(() => {
+        return localStorage.getItem("nityaNamaFontSize") || "md"; // 'sm' | 'md' | 'lg' | 'xl'
+    });
+    const [namaDisplayOptions, setNamaDisplayOptions] = useState(() => {
+        try {
+            const saved = localStorage.getItem("nityaNamaDisplayOpts");
+            if (saved) return JSON.parse(saved);
+        } catch {}
+        return {
+            showMeaningHi: true,
+            showMeaningEn: true,
+            showMeta: true,
+            showBeads: true,
+            showPrompt: true
+        };
+    });
+    const [showNamaControlsModal, setShowNamaControlsModal] = useState(false);
 
     // Karma Yoga State (Dedicated Two-Screen Flow)
     const [karmaSubTab, setKarmaSubTab] = useState("sankalpa"); // 'sankalpa' | 'logs'
@@ -208,7 +464,20 @@ export default function App() {
     // Modals
     const [showModal, setShowModal] = useState(false); // 1-breath smaran
     const [syncStatus, setSyncStatus] = useState("Offline-Ready");
+    const [showSyncModal, setShowSyncModal] = useState(false);
+    const [syncFeedbackMsg, setSyncFeedbackMsg] = useState("");
     const syncTimeoutRef = useRef(null);
+
+    // Recitation Tab State (Two-Screen Architecture)
+    const [reciteSelectedColId, setReciteSelectedColId] = useState(() => {
+        return state.sahasranamas?.[0]?.id || "";
+    });
+    const [isReciting, setIsReciting] = useState(false); // false: Stotra selector & paste screen; true: minimal recitation
+    const [reciteViewMode, setReciteViewMode] = useState("single"); // 'single' | 'full'
+    const [reciteShlokaIndex, setReciteShlokaIndex] = useState(0);
+    const [selectedShlokaWord, setSelectedShlokaWord] = useState(null); // { token, meanings: [] }
+    const [isEditingStotraText, setIsEditingStotraText] = useState(false);
+    const [stotraTextDraft, setStotraTextDraft] = useState("");
 
     // Bhava Category Settings State
     const [newBhavaCategory, setNewBhavaCategory] = useState("");
@@ -242,6 +511,7 @@ export default function App() {
     const [uploadTargetCollectionId, setUploadTargetCollectionId] = useState("");
     const [uploadRawText, setUploadRawText] = useState("");
     const [uploadStatusMsg, setUploadStatusMsg] = useState("");
+    const [csvFormatChoice, setCsvFormatChoice] = useState("auto"); // 'auto' (Option C) | 'b' (Option B) | 'legacy'
 
     // Delete Stotra Confirmation Modal
     const [stotraToDelete, setStotraToDelete] = useState(null);
@@ -407,81 +677,112 @@ export default function App() {
         } catch { }
     }, []);
 
-    // Save to LocalStorage & Debounced Cloud Sync
+    // Save to LocalStorage
     useEffect(() => {
         localStorage.setItem("nityaSmaranD1State", JSON.stringify(state));
         document.documentElement.setAttribute("data-theme", state.theme);
-
-        if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-        syncTimeoutRef.current = setTimeout(() => {
-            syncTimeoutRef.current = null;
-            pushToCloud(state);
-        }, 1200);
     }, [state]);
 
-    // Pull from Cloudflare D1
-    const pullFromCloud = useCallback(async (keyToUse) => {
-        if (!navigator.onLine) return;
-        // Do not pull and overwrite if there are pending unpushed local changes
-        if (syncTimeoutRef.current) return;
-        try {
-            setSyncStatus("Syncing...");
-            const res = await fetch(`/api/sync?key=${encodeURIComponent(keyToUse)}`);
-            if (!res.ok) throw new Error("Sync failed");
-            const data = await res.json();
-
-            if (data.state) {
-                const s = data.state;
-                setState(prev => {
-                    // Do not overwrite if local state was modified after cloud timestamp
-                    if (s.lastModified && prev.lastModified && s.lastModified < prev.lastModified) {
-                        return prev;
-                    }
-                    return {
-                        ...prev,
-                        ...s,
-                        todayMalas: Math.max(prev.todayMalas, s.todayMalas || 0),
-                        totalJapa: Math.max(prev.totalJapa, s.totalJapa || 0),
-                        bhavaOptions: Array.isArray(s.bhavaOptions) && s.bhavaOptions.length > 0 ? s.bhavaOptions : prev.bhavaOptions,
-                        sahasranamas: Array.isArray(s.sahasranamas) ? s.sahasranamas : prev.sahasranamas,
-                        deities: Array.isArray(s.deities) && s.deities.length > 0 ? s.deities : prev.deities,
-                        favoriteKeys: Array.isArray(s.favoriteKeys) ? s.favoriteKeys : (prev.favoriteKeys || [])
-                    };
-                });
-            }
-            setSyncStatus("☁️ Synced");
-        } catch {
-            setSyncStatus("Local Mode");
+    // Cloudflare D1 Cloud Sync: Explicit Up Sync & Down Sync Handlers with Merge & Overwrite options
+    const handleUpSync = async () => {
+        if (!navigator.onLine) {
+            setSyncFeedbackMsg("⚠️ Offline. Please check your internet connection.");
+            return;
         }
-    }, []);
-
-    const pushToCloud = async (currentState) => {
-        if (!navigator.onLine || !currentState.syncKey) return;
+        if (!state.syncKey) {
+            setSyncFeedbackMsg("⚠️ Please enter a Sync Key first.");
+            setShowSyncModal(true);
+            return;
+        }
         try {
             setSyncStatus("Syncing...");
+            setSyncFeedbackMsg("Uploading local data to Cloudflare D1...");
+            
+            let stateToUpload = state;
+            if (state.syncStrategy === "merge") {
+                try {
+                    const getRes = await fetch(`/api/sync?key=${encodeURIComponent(state.syncKey)}`);
+                    if (getRes.ok) {
+                        const cloudData = await getRes.json();
+                        if (cloudData.state) {
+                            stateToUpload = mergeSyncStates(state, cloudData.state);
+                            setState(stateToUpload);
+                        }
+                    }
+                } catch (mergeErr) {
+                    console.warn("Merge pre-fetch failed, pushing local state directly:", mergeErr);
+                }
+            }
+
             const res = await fetch("/api/sync", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    syncKey: currentState.syncKey,
-                    state: currentState,
-                    karmas: currentState.karmas
+                    syncKey: state.syncKey,
+                    state: stateToUpload,
+                    karmas: stateToUpload.karmas
                 })
             });
-            if (res.ok) {
-                setSyncStatus("☁️ Synced");
-            }
-        } catch {
+            if (!res.ok) throw new Error("Push failed");
+            setSyncStatus("☁️ Synced");
+            setSyncFeedbackMsg(`✓ Up Sync successful! Data saved to cloud (${state.syncStrategy === "overwrite" ? "Overwritten" : "Merged"}) at ${new Date().toLocaleTimeString()}`);
+            triggerHaptic(20);
+        } catch (err) {
             setSyncStatus("Local Mode");
+            setSyncFeedbackMsg(`❌ Up Sync failed: ${err.message}`);
         }
     };
 
-    useEffect(() => {
-        pullFromCloud(state.syncKey);
-        const onFocus = () => pullFromCloud(state.syncKey);
-        window.addEventListener("focus", onFocus);
-        return () => window.removeEventListener("focus", onFocus);
-    }, [pullFromCloud, state.syncKey]);
+    const handleDownSync = async () => {
+        if (!navigator.onLine) {
+            setSyncFeedbackMsg("⚠️ Offline. Please check your internet connection.");
+            return;
+        }
+        if (!state.syncKey) {
+            setSyncFeedbackMsg("⚠️ Please enter a Sync Key first.");
+            setShowSyncModal(true);
+            return;
+        }
+        const isOverwrite = state.syncStrategy === "overwrite";
+        if (isOverwrite) {
+            const confirmPull = window.confirm("⚠️ Overwrite Mode: Down Sync will download cloud data and replace this device's current local data. Do you want to proceed?");
+            if (!confirmPull) return;
+        }
+
+        try {
+            setSyncStatus("Syncing...");
+            setSyncFeedbackMsg("Fetching latest cloud data...");
+            const res = await fetch(`/api/sync?key=${encodeURIComponent(state.syncKey)}`);
+            if (!res.ok) throw new Error("Pull failed");
+            const data = await res.json();
+            if (data.state) {
+                const cloudState = data.state;
+                if (isOverwrite) {
+                    setState(prev => ({
+                        ...prev,
+                        ...cloudState,
+                        syncStrategy: prev.syncStrategy || "overwrite",
+                        bhavaOptions: Array.isArray(cloudState.bhavaOptions) && cloudState.bhavaOptions.length > 0 ? cloudState.bhavaOptions : prev.bhavaOptions,
+                        sahasranamas: Array.isArray(cloudState.sahasranamas) ? cloudState.sahasranamas : prev.sahasranamas,
+                        deities: Array.isArray(cloudState.deities) && cloudState.deities.length > 0 ? cloudState.deities : prev.deities,
+                        favoriteKeys: Array.isArray(cloudState.favoriteKeys) ? cloudState.favoriteKeys : (prev.favoriteKeys || [])
+                    }));
+                    setSyncFeedbackMsg(`✓ Down Sync complete! Replaced local data with cloud data at ${new Date().toLocaleTimeString()}`);
+                } else {
+                    setState(prev => mergeSyncStates(prev, cloudState));
+                    setSyncFeedbackMsg(`✓ Down Sync complete! Merged cloud + local data at ${new Date().toLocaleTimeString()}`);
+                }
+                setSyncStatus("☁️ Synced");
+                triggerHaptic(20);
+            } else {
+                setSyncFeedbackMsg("⚠️ No saved state found on cloud for this Sync Key.");
+                setSyncStatus("Offline-Ready");
+            }
+        } catch (err) {
+            setSyncStatus("Local Mode");
+            setSyncFeedbackMsg(`❌ Down Sync failed: ${err.message}`);
+        }
+    };
 
     // Smaran Nudge Interval Timer
     useEffect(() => {
@@ -630,7 +931,94 @@ export default function App() {
         }
     }, [fsActiveNames.length, fsRandomMode]);
 
-    // Keyboard navigation (Spacebar to chant, arrows to browse)
+    // Auto-Play Timer & Progress Loop
+    const autoPlayTimerRef = useRef(null);
+    const autoPlayStartTimeRef = useRef(null);
+    const autoPlayStepRef = useRef();
+    autoPlayStepRef.current = () => {
+        if (autoPlayCountBeads) {
+            handleChantAndNext();
+        } else {
+            handleNextName();
+        }
+    };
+
+    const autoPlayStopCheckRef = useRef();
+    autoPlayStopCheckRef.current = () => {
+        if (autoPlayStopCondition === "mala" && state.currentBead + 1 >= 108) {
+            return true;
+        }
+        if (autoPlayStopCondition === "collection" && fsActiveNames.length > 0 && ((fsNameIndex + 1) % fsActiveNames.length) === 0) {
+            return true;
+        }
+        return false;
+    };
+
+    useEffect(() => {
+        if (!autoPlayActive || activeTab !== "nama") {
+            setAutoPlayProgress(0);
+            if (autoPlayTimerRef.current) {
+                cancelAnimationFrame(autoPlayTimerRef.current);
+                autoPlayTimerRef.current = null;
+            }
+            return;
+        }
+
+        const intervalMs = Math.max(1000, (autoPlayInterval || 3) * 1000);
+        autoPlayStartTimeRef.current = performance.now();
+
+        const tick = (now) => {
+            const elapsed = now - autoPlayStartTimeRef.current;
+            const progress = Math.min(100, (elapsed / intervalMs) * 100);
+            setAutoPlayProgress(progress);
+
+            if (elapsed >= intervalMs) {
+                const shouldStop = autoPlayStopCheckRef.current();
+                autoPlayStepRef.current();
+                if (shouldStop) {
+                    setAutoPlayActive(false);
+                    setAutoPlayProgress(0);
+                    return;
+                }
+                autoPlayStartTimeRef.current = performance.now();
+                setAutoPlayProgress(0);
+            }
+
+            autoPlayTimerRef.current = requestAnimationFrame(tick);
+        };
+
+        autoPlayTimerRef.current = requestAnimationFrame(tick);
+
+        return () => {
+            if (autoPlayTimerRef.current) {
+                cancelAnimationFrame(autoPlayTimerRef.current);
+                autoPlayTimerRef.current = null;
+            }
+        };
+    }, [autoPlayActive, activeTab, autoPlayInterval]);
+
+    // LocalStorage persistence for Auto-Play & Display options
+    useEffect(() => {
+        localStorage.setItem("nityaAutoPlayInterval", String(autoPlayInterval));
+    }, [autoPlayInterval]);
+
+    useEffect(() => {
+        localStorage.setItem("nityaAutoPlayStop", autoPlayStopCondition);
+    }, [autoPlayStopCondition]);
+
+    useEffect(() => {
+        localStorage.setItem("nityaAutoPlayCountBeads", String(autoPlayCountBeads));
+    }, [autoPlayCountBeads]);
+
+    useEffect(() => {
+        localStorage.setItem("nityaNamaFontSize", namaFontSize);
+    }, [namaFontSize]);
+
+    useEffect(() => {
+        localStorage.setItem("nityaNamaDisplayOpts", JSON.stringify(namaDisplayOptions));
+    }, [namaDisplayOptions]);
+
+    // Keyboard navigation (Spacebar to chant, arrows to browse, P to toggle auto-play)
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
@@ -639,18 +1027,39 @@ export default function App() {
                 if (e.code === "Space") {
                     e.preventDefault();
                     handleChantAndNext();
+                    if (autoPlayStartTimeRef.current) autoPlayStartTimeRef.current = performance.now();
                 } else if (e.code === "ArrowRight") {
                     e.preventDefault();
                     handleNextName();
+                    if (autoPlayStartTimeRef.current) autoPlayStartTimeRef.current = performance.now();
                 } else if (e.code === "ArrowLeft") {
                     e.preventDefault();
                     handlePrevName();
+                    if (autoPlayStartTimeRef.current) autoPlayStartTimeRef.current = performance.now();
+                } else if (e.code === "KeyP" || e.code === "KeyA") {
+                    e.preventDefault();
+                    setAutoPlayActive(p => !p);
+                }
+            } else if (activeTab === "recite" && isReciting && reciteViewMode === "single") {
+            } else if (activeTab === "recite" && isReciting && reciteViewMode === "single") {
+                const currentCol = state.sahasranamas.find(c => c.id === reciteSelectedColId);
+                const shlokas = currentCol?.rawStotraText ? parseStotraText(currentCol.rawStotraText) : [];
+                if (shlokas.length > 0) {
+                    if (e.code === "ArrowRight" || e.code === "Space") {
+                        e.preventDefault();
+                        setReciteShlokaIndex(i => Math.min(shlokas.length - 1, i + 1));
+                        setSelectedShlokaWord(null);
+                    } else if (e.code === "ArrowLeft") {
+                        e.preventDefault();
+                        setReciteShlokaIndex(i => Math.max(0, i - 1));
+                        setSelectedShlokaWord(null);
+                    }
                 }
             }
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [activeTab, handleChantAndNext, handleNextName, handlePrevName]);
+    }, [activeTab, handleChantAndNext, handleNextName, handlePrevName, isReciting, reciteViewMode, reciteSelectedColId, state.sahasranamas]);
 
     // Add Karma (Textbox is OPTIONAL: even if blank, entry is created)
     const addKarma = (customInputText, bhavaOverride) => {
@@ -962,10 +1371,30 @@ export default function App() {
         const lines = uploadRawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
         const parsedNames = [];
 
-        for (let line of lines) {
+        // Check for CSV Header row if Option C or auto
+        let colMap = null;
+        let startIndex = 0;
+
+        if (csvFormatChoice === "auto") {
+            const firstLineCols = lines[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, "").trim().toLowerCase());
+            let nameIdx = -1, hiIdx = -1, enIdx = -1, shlokaIdx = -1;
+            firstLineCols.forEach((col, idx) => {
+                if (["name", "naam", "नाम", "sanskrit", "word"].some(k => col.includes(k))) nameIdx = idx;
+                else if (["hi", "hindi", "अर्थ", "meaning_hi", "meaninghi", "हिन्दी"].some(k => col.includes(k))) hiIdx = idx;
+                else if (["en", "eng", "english", "meaning_en", "meaningen"].some(k => col.includes(k))) enIdx = idx;
+                else if (["shlok", "shloka", "श्लोक", "verse", "no", "num"].some(k => col.includes(k))) shlokaIdx = idx;
+            });
+            if (nameIdx !== -1) {
+                colMap = { nameIdx, hiIdx, enIdx, shlokaIdx };
+                startIndex = 1;
+            }
+        }
+
+        for (let i = startIndex; i < lines.length; i++) {
+            const line = lines[i];
             if (/^\|?[-:\s|]+\|?$/.test(line)) continue;
 
-            // 1. Markdown Table: | Name | Hindi | English |
+            // 1. Markdown Table: | Name | Hindi | English | (optional Shloka)
             if (line.includes("|")) {
                 const parts = line.split("|").map(p => p.trim()).filter(Boolean);
                 if (parts.length >= 2) {
@@ -973,11 +1402,13 @@ export default function App() {
                     if (["name", "naam", "नाम", "sanskrit"].includes(name.toLowerCase())) continue;
                     const meaningHi = parts[1] || "";
                     const meaningEn = parts[2] || "";
+                    const shlokaNum = parts[3] ? parseInt(parts[3], 10) || null : null;
                     parsedNames.push({
                         id: `imp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
                         name,
                         meaningHi,
-                        meaningEn
+                        meaningEn,
+                        shlokaNum
                     });
                     continue;
                 }
@@ -992,29 +1423,59 @@ export default function App() {
                     id: `imp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
                     name,
                     meaningHi: fullMeaning,
-                    meaningEn: ""
+                    meaningEn: "",
+                    shlokaNum: null
                 });
                 continue;
             }
 
-            // 3. CSV: Name, Hindi, English
+            // 3. CSV parsing with Column Mapping or Format Choice
             const csvCols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, "").trim());
-            if (csvCols.length >= 2) {
+            if (colMap) {
+                const name = csvCols[colMap.nameIdx];
+                if (!name || ["name", "naam", "नाम"].includes(name.toLowerCase())) continue;
+                const meaningHi = colMap.hiIdx !== -1 ? (csvCols[colMap.hiIdx] || "") : "";
+                const meaningEn = colMap.enIdx !== -1 ? (csvCols[colMap.enIdx] || "") : "";
+                const shlokaNum = colMap.shlokaIdx !== -1 && csvCols[colMap.shlokaIdx] ? (parseInt(csvCols[colMap.shlokaIdx], 10) || null) : null;
+                parsedNames.push({
+                    id: `imp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    name,
+                    meaningHi,
+                    meaningEn,
+                    shlokaNum
+                });
+            } else if (csvFormatChoice === "b") {
+                // Fixed 4 columns: Name, Hindi Meaning, English Meaning, Shloka Number
                 const name = csvCols[0];
-                if (["name", "naam", "नाम"].includes(name.toLowerCase())) continue;
+                if (!name || ["name", "naam", "नाम"].includes(name.toLowerCase())) continue;
                 parsedNames.push({
                     id: `imp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
                     name,
                     meaningHi: csvCols[1] || "",
-                    meaningEn: csvCols[2] || ""
+                    meaningEn: csvCols[2] || "",
+                    shlokaNum: csvCols[3] ? (parseInt(csvCols[3], 10) || null) : null
                 });
-            } else if (csvCols.length === 1 && csvCols[0]) {
-                parsedNames.push({
-                    id: `imp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                    name: csvCols[0],
-                    meaningHi: "",
-                    meaningEn: ""
-                });
+            } else {
+                // Legacy or Auto without headers
+                if (csvCols.length >= 2) {
+                    const name = csvCols[0];
+                    if (["name", "naam", "नाम"].includes(name.toLowerCase())) continue;
+                    parsedNames.push({
+                        id: `imp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                        name,
+                        meaningHi: csvCols[1] || "",
+                        meaningEn: csvCols[2] || "",
+                        shlokaNum: csvCols[3] ? (parseInt(csvCols[3], 10) || null) : null
+                    });
+                } else if (csvCols.length === 1 && csvCols[0]) {
+                    parsedNames.push({
+                        id: `imp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                        name: csvCols[0],
+                        meaningHi: "",
+                        meaningEn: "",
+                        shlokaNum: null
+                    });
+                }
             }
         }
 
@@ -1308,8 +1769,32 @@ export default function App() {
                         <span>🔔</span>
                         <span>{state.nudgeInterval > 0 ? `${state.nudgeInterval}m` : "Smaran"}</span>
                     </div>
-                    <div className="nudge-pill" onClick={() => pullFromCloud(state.syncKey)}>
-                        <span>{syncStatus}</span>
+
+                    {/* Quick Sync Cluster in Top Header */}
+                    <div className="sync-quick-cluster" title="Cloudflare D1 Cloud Sync">
+                        <button
+                            type="button"
+                            className="sync-quick-btn"
+                            onClick={(e) => { e.stopPropagation(); handleUpSync(); }}
+                            title="Up Sync: Push local data to cloud"
+                        >
+                            ⬆️ Up
+                        </button>
+                        <button
+                            type="button"
+                            className="sync-quick-btn"
+                            onClick={(e) => { e.stopPropagation(); handleDownSync(); }}
+                            title="Down Sync: Pull cloud data to device"
+                        >
+                            ⬇️ Down
+                        </button>
+                        <div
+                            className="nudge-pill sync-status-pill"
+                            onClick={() => { setSyncFeedbackMsg(""); setShowSyncModal(true); }}
+                            title="Open Cloud Sync Settings & Conflict Resolution Options"
+                        >
+                            <span>{syncStatus}</span>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -1351,10 +1836,28 @@ export default function App() {
                                     </optgroup>
                                 </select>
 
-                                <div className="nama-bead-badge" title="Live 108 bead counter">
-                                    <span>📿</span>
-                                    <span>{state.currentBead}/108</span>
-                                </div>
+                                {namaDisplayOptions.showBeads && (
+                                    <div className="nama-bead-badge" title="Live 108 bead counter">
+                                        <span>📿</span>
+                                        <span>{state.currentBead}/108</span>
+                                    </div>
+                                )}
+
+                                <button
+                                    className={`nama-icon-btn ${autoPlayActive ? "active" : ""}`}
+                                    onClick={() => setAutoPlayActive(p => !p)}
+                                    title={autoPlayActive ? "Pause Auto-Play (Key: P)" : "Start Auto-Play Japa (Key: P)"}
+                                >
+                                    <span>{autoPlayActive ? "⏸ Pause" : "▶ Auto"}</span>
+                                </button>
+
+                                <button
+                                    className="nama-icon-btn"
+                                    onClick={() => setShowNamaControlsModal(true)}
+                                    title="Display & Auto-Play Timing Controls"
+                                >
+                                    <span>🎛️ Controls</span>
+                                </button>
 
                                 <button
                                     className="nama-icon-btn"
@@ -1373,10 +1876,37 @@ export default function App() {
                                 </button>
                             </div>
 
+                            {/* Auto-Play Live Progress Track */}
+                            {autoPlayActive && (
+                                <div className="nama-autoplay-track">
+                                    <div className="nama-autoplay-progress-bar">
+                                        <div
+                                            className="nama-autoplay-fill"
+                                            style={{ width: `${autoPlayProgress}%` }}
+                                        />
+                                    </div>
+                                    <div className="nama-autoplay-pill">
+                                        <span>⚡ Auto: {autoPlayInterval}s</span>
+                                        <span>•</span>
+                                        <span>
+                                            {autoPlayStopCondition === "mala"
+                                                ? `Bead ${state.currentBead}/108`
+                                                : autoPlayStopCondition === "collection"
+                                                ? `Name ${(fsNameIndex % fsActiveNames.length) + 1}/${fsActiveNames.length}`
+                                                : "Loop Mode"}
+                                        </span>
+                                        {autoPlayCountBeads && <span>• 📿 Counting Beads</span>}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Center Tap-Anywhere Sacred Canvas */}
                             <div
                                 className="sacred-chant-canvas"
-                                onClick={handleChantAndNext}
+                                onClick={() => {
+                                    handleChantAndNext();
+                                    if (autoPlayStartTimeRef.current) autoPlayStartTimeRef.current = performance.now();
+                                }}
                                 title="Tap anywhere to chant & advance"
                             >
                                 {currentFsName && (
@@ -1408,14 +1938,16 @@ export default function App() {
                                     </div>
                                 ) : (
                                     <>
-                                        <div className="sacred-meta-row">
-                                            <span>{currentFsName ? currentFsName.collectionTitle : state.deityName}</span>
-                                            {fsActiveNames.length > 0 && (
-                                                <span>• {(fsNameIndex % fsActiveNames.length) + 1} / {fsActiveNames.length}</span>
-                                            )}
-                                        </div>
+                                        {namaDisplayOptions.showMeta && (
+                                            <div className="sacred-meta-row">
+                                                <span>{currentFsName ? currentFsName.collectionTitle : state.deityName}</span>
+                                                {fsActiveNames.length > 0 && (
+                                                    <span>• {(fsNameIndex % fsActiveNames.length) + 1} / {fsActiveNames.length}</span>
+                                                )}
+                                            </div>
+                                        )}
 
-                                        <div className="sacred-name-text">
+                                        <div className={`sacred-name-text nama-size-${namaFontSize}`}>
                                             {currentFsName ? currentFsName.name : state.mantra}
                                         </div>
 
@@ -1424,18 +1956,20 @@ export default function App() {
                                                 className="sacred-meaning-box"
                                                 onClick={e => e.stopPropagation()}
                                             >
-                                                {currentFsName.meaningHi && (
+                                                {namaDisplayOptions.showMeaningHi && currentFsName.meaningHi && (
                                                     <div className="sacred-meaning-hi">{currentFsName.meaningHi}</div>
                                                 )}
-                                                {currentFsName.meaningEn && (
+                                                {namaDisplayOptions.showMeaningEn && currentFsName.meaningEn && (
                                                     <div className="sacred-meaning-en">{currentFsName.meaningEn}</div>
                                                 )}
                                             </div>
                                         )}
 
-                                        <div className="sacred-tap-prompt">
-                                            Tap anywhere to count bead & advance ({fsRandomMode ? "Random" : "Sequential"})
-                                        </div>
+                                        {namaDisplayOptions.showPrompt && (
+                                            <div className="sacred-tap-prompt">
+                                                Tap anywhere to count bead & advance ({fsRandomMode ? "Random" : "Sequential"})
+                                            </div>
+                                        )}
                                     </>
                                 )}
                             </div>
@@ -1445,7 +1979,11 @@ export default function App() {
                                 <div className="sacred-controls-row">
                                     <button
                                         className="btn-nav-circle"
-                                        onClick={e => { e.stopPropagation(); handlePrevName(); }}
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            handlePrevName();
+                                            if (autoPlayStartTimeRef.current) autoPlayStartTimeRef.current = performance.now();
+                                        }}
                                         title="Previous Name"
                                     >
                                         ◀
@@ -1453,7 +1991,11 @@ export default function App() {
 
                                     <button
                                         className="btn-chant-primary"
-                                        onClick={e => { e.stopPropagation(); handleChantAndNext(); }}
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            handleChantAndNext();
+                                            if (autoPlayStartTimeRef.current) autoPlayStartTimeRef.current = performance.now();
+                                        }}
                                         title="Chant & count bead (Spacebar also works)"
                                     >
                                         <span>📿</span>
@@ -1462,39 +2004,441 @@ export default function App() {
 
                                     <button
                                         className="btn-nav-circle"
-                                        onClick={e => { e.stopPropagation(); handleNextName(); }}
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            handleNextName();
+                                            if (autoPlayStartTimeRef.current) autoPlayStartTimeRef.current = performance.now();
+                                        }}
                                         title="Next Name"
                                     >
                                         ▶
                                     </button>
+
+                                    <button
+                                        className={`btn-autoplay-bubble ${autoPlayActive ? "active" : ""}`}
+                                        onClick={e => { e.stopPropagation(); setAutoPlayActive(p => !p); }}
+                                        title={autoPlayActive ? "Pause Auto-Play (Key: P)" : "Start Auto-Play (Key: P)"}
+                                    >
+                                        <span>{autoPlayActive ? "⏸" : "▶"}</span>
+                                        <span>{autoPlayActive ? "Pause" : "Auto"}</span>
+                                    </button>
                                 </div>
 
-                                <div className="sacred-sub-stats">
-                                    <span>Today: <strong>{state.todayMalas}</strong> Malas</span>
-                                    <span>•</span>
-                                    <span>Total: <strong>{state.totalJapa}</strong></span>
-                                    <span>•</span>
-                                    <button
-                                        style={{ background: "none", border: "none", color: "var(--saffron)", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600 }}
-                                        onClick={() => setState(s => ({ ...s, currentBead: 0 }))}
-                                    >
-                                        Reset Bead
-                                    </button>
-                                    <span>•</span>
-                                    <button
-                                        style={{ background: "none", border: "none", color: fsRandomMode ? "var(--saffron)" : "var(--text-muted)", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600 }}
-                                        onClick={() => setFsRandomMode(r => !r)}
-                                    >
-                                        {fsRandomMode ? "🔀 Random" : "➡️ Seq"}
-                                    </button>
-                                </div>
+                                {namaDisplayOptions.showBeads && (
+                                    <div className="sacred-sub-stats">
+                                        <span>Today: <strong>{state.todayMalas}</strong> Malas</span>
+                                        <span>•</span>
+                                        <span>Total: <strong>{state.totalJapa}</strong></span>
+                                        <span>•</span>
+                                        <button
+                                            style={{ background: "none", border: "none", color: "var(--saffron)", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600 }}
+                                            onClick={() => setState(s => ({ ...s, currentBead: 0 }))}
+                                        >
+                                            Reset Bead
+                                        </button>
+                                        <span>•</span>
+                                        <button
+                                            style={{ background: "none", border: "none", color: fsRandomMode ? "var(--saffron)" : "var(--text-muted)", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600 }}
+                                            onClick={() => setFsRandomMode(r => !r)}
+                                        >
+                                            {fsRandomMode ? "🔀 Random" : "➡️ Seq"}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </section>
                 )}
 
                 {/* ========================================================
-                    TAB 2: KARMA YOGA (DEDICATED TWO-SCREEN ARCHITECTURE)
+                    TAB 2: SHLOKA RECITATION & MEANING OVERLAY
+                    Screen 1: Stotra Selection & Stotra Text Management
+                    Screen 2: Dedicated Minimal Chanting View (Single / Full)
+                   ======================================================== */}
+                {activeTab === "recite" && (() => {
+                    const currentReciteCol = state.sahasranamas.find(c => c.id === reciteSelectedColId) || state.sahasranamas[0];
+                    const reciteParsedShlokas = currentReciteCol?.rawStotraText ? parseStotraText(currentReciteCol.rawStotraText) : [];
+
+                    if (!isReciting) {
+                        /* ----------------------------------------------------
+                           SCREEN 1: STOTRA SELECTOR & STOTRA TEXT MANAGEMENT
+                           ---------------------------------------------------- */
+                        return (
+                            <section className="tab-pane active scrollable">
+                                <div className="card-header-bar">
+                                    <div className="card-title">📖 Stotra Recitation (श्लोक पठन)</div>
+                                    <div className="card-desc">
+                                        Recite sacred stotras and sahasranamas shloka-by-shloka. Words matching divine names in your collection are subtly highlighted to reveal their meaning on tap.
+                                    </div>
+                                </div>
+
+                                <div className="recite-hub-card">
+                                    <div className="input-group">
+                                        <label>Choose Sahasranama / Stotra to Recite:</label>
+                                        <select
+                                            value={reciteSelectedColId}
+                                            onChange={e => {
+                                                setReciteSelectedColId(e.target.value);
+                                                setIsEditingStotraText(false);
+                                                setSelectedShlokaWord(null);
+                                            }}
+                                        >
+                                            {state.sahasranamas.map(col => (
+                                                <option key={col.id} value={col.id}>
+                                                    {col.title} ({col.deity})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {currentReciteCol && (
+                                        <div style={{ marginTop: "12px", borderTop: "1px solid var(--border-light)", paddingTop: "12px" }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "8px" }}>
+                                                <div>
+                                                    <strong style={{ fontSize: "1.1rem", color: "var(--saffron)" }}>
+                                                        {currentReciteCol.title}
+                                                    </strong>
+                                                    <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginTop: "2px" }}>
+                                                        Deity: {currentReciteCol.deity} • {currentReciteCol.names?.length || 0} names registered for meaning lookup
+                                                    </div>
+                                                </div>
+                                                {reciteParsedShlokas.length > 0 ? (
+                                                    <div className="recite-stotra-status-badge ready">
+                                                        <span>✓</span> {reciteParsedShlokas.length} Shlokas Ready
+                                                    </div>
+                                                ) : (
+                                                    <div className="recite-stotra-status-badge empty">
+                                                        <span>⚠️</span> No Shloka Text Yet
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Action buttons */}
+                                            <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap" }}>
+                                                {reciteParsedShlokas.length > 0 ? (
+                                                    <>
+                                                        <button
+                                                            className="btn"
+                                                            style={{ flex: 1, padding: "12px 16px", fontSize: "1rem" }}
+                                                            onClick={() => {
+                                                                setIsReciting(true);
+                                                                setReciteShlokaIndex(0);
+                                                                setSelectedShlokaWord(null);
+                                                            }}
+                                                        >
+                                                            ▶️ Begin Recitation
+                                                        </button>
+                                                        <button
+                                                            className="btn btn-secondary btn-small"
+                                                            onClick={() => {
+                                                                setStotraTextDraft(currentReciteCol.rawStotraText || "");
+                                                                setIsEditingStotraText(e => !e);
+                                                            }}
+                                                        >
+                                                            ✏️ {isEditingStotraText ? "Close Editor" : "Edit Stotra Text"}
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <button
+                                                        className="btn"
+                                                        style={{ width: "100%", padding: "12px 16px", fontSize: "1rem" }}
+                                                        onClick={() => {
+                                                            setStotraTextDraft(currentReciteCol.rawStotraText || "");
+                                                            setIsEditingStotraText(true);
+                                                        }}
+                                                    >
+                                                        📥 Paste Stotra Text
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Paste / Edit Stotra Text Area */}
+                                            {isEditingStotraText && (
+                                                <div style={{ marginTop: "16px", background: "var(--bg-accent-soft)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "14px" }}>
+                                                    <div style={{ fontWeight: 700, fontSize: "0.92rem", color: "var(--text-primary)", marginBottom: "6px" }}>
+                                                        Paste Complete Stotra or Sahasranama Text:
+                                                    </div>
+                                                    <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: "10px", lineHeight: "1.4" }}>
+                                                        Include line stops (।) for half-shlokas and verse numbers (e.g. ॥ १ ॥ or ॥ 1 ॥ or 1.). Names matching your collection will automatically be highlighted for instant meaning lookups.
+                                                    </div>
+                                                    <textarea
+                                                        rows={10}
+                                                        value={stotraTextDraft}
+                                                        onChange={e => setStotraTextDraft(e.target.value)}
+                                                        placeholder={`Paste full stotra here, e.g.:\n\nविश्वं विष्णुर्वषट्कारो भूतभव्यभवत्प्रभुः ।\nभूतकृद्भूतभृद्भावो भूतात्मा भूतभावनः ॥ १ ॥\n\nपूतात्मा परमात्मा च मुक्तानां परमा गतिः ।\nअव्ययः पुरुषः साक्षी क्षेत्रज्ञोऽक्षर एव च ॥ २ ॥`}
+                                                        style={{ fontFamily: "'Noto Sans Devanagari', -apple-system, sans-serif", fontSize: "0.95rem", lineHeight: "1.6" }}
+                                                    />
+                                                    <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+                                                        <button
+                                                            className="btn btn-small"
+                                                            style={{ flex: 1 }}
+                                                            onClick={() => {
+                                                                setState(prev => ({
+                                                                    ...prev,
+                                                                    sahasranamas: prev.sahasranamas.map(c =>
+                                                                        c.id === currentReciteCol.id
+                                                                            ? { ...c, rawStotraText: stotraTextDraft }
+                                                                            : c
+                                                                    )
+                                                                }));
+                                                                setIsEditingStotraText(false);
+                                                            }}
+                                                        >
+                                                            💾 Save Stotra Text
+                                                        </button>
+                                                        <button
+                                                            className="btn btn-secondary btn-small"
+                                                            onClick={() => setIsEditingStotraText(false)}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Preview of Shloka 1 if text exists */}
+                                            {reciteParsedShlokas.length > 0 && !isEditingStotraText && (
+                                                <div style={{ marginTop: "16px", background: "var(--bg-accent-soft)", borderRadius: "var(--radius-md)", padding: "12px 14px", border: "1px dashed var(--border)" }}>
+                                                    <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--gold)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>
+                                                        Shloka 1 Preview:
+                                                    </div>
+                                                    <div style={{ fontSize: "1.05rem", lineHeight: "1.7", color: "var(--text-primary)", fontWeight: 600 }}>
+                                                        {reciteParsedShlokas[0].lines.map((l, i) => (
+                                                            <div key={i}>{l}</div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </section>
+                        );
+                    }
+
+                    /* --------------------------------------------------------
+                       SCREEN 2: DEDICATED RECITATION SCREEN (MINIMAL & UNCLUTTERED)
+                       -------------------------------------------------------- */
+                    const shloka = reciteParsedShlokas[reciteShlokaIndex] || reciteParsedShlokas[0];
+
+                    return (
+                        <section className="tab-pane active" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+                            <div className="recite-screen-chanting">
+                                {/* Minimal, Slim Header */}
+                                <div className="recite-minimal-header">
+                                    <button
+                                        className="btn btn-secondary btn-small"
+                                        onClick={() => {
+                                            setIsReciting(false);
+                                            setSelectedShlokaWord(null);
+                                        }}
+                                        style={{ padding: "4px 8px", fontSize: "0.78rem" }}
+                                    >
+                                        ◀ Exit
+                                    </button>
+                                    <div className="recite-header-title" title={currentReciteCol?.title}>
+                                        {currentReciteCol?.title}
+                                    </div>
+                                    <div className="recite-mode-pill">
+                                        <button
+                                            className={`recite-mode-btn ${reciteViewMode === "single" ? "active" : ""}`}
+                                            onClick={() => setReciteViewMode("single")}
+                                        >
+                                            🗂️ Single
+                                        </button>
+                                        <button
+                                            className={`recite-mode-btn ${reciteViewMode === "full" ? "active" : ""}`}
+                                            onClick={() => setReciteViewMode("full")}
+                                        >
+                                            📜 Full
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {reciteParsedShlokas.length === 0 ? (
+                                    <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                                        <div style={{ fontSize: "1.1rem", marginBottom: "12px", color: "var(--text-muted)" }}>
+                                            No shlokas found in stotra text. Please check line stops and numbering.
+                                        </div>
+                                        <button className="btn btn-secondary" onClick={() => setIsReciting(false)}>
+                                            ◀ Back to Stotra Editor
+                                        </button>
+                                    </div>
+                                ) : reciteViewMode === "single" ? (
+                                    /* Single Shloka Focused View */
+                                    <div className="single-shloka-container">
+                                        <div>
+                                            <div className="shloka-progress-wrap">
+                                                <div
+                                                    className="shloka-progress-bar"
+                                                    style={{ width: `${((reciteShlokaIndex + 1) / reciteParsedShlokas.length) * 100}%` }}
+                                                />
+                                            </div>
+
+                                            <div className="shloka-meta-row">
+                                                <div className="shloka-badge">
+                                                    श्लोक {numberToDevanagari(shloka.shlokaNum)}
+                                                </div>
+                                                <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", fontWeight: 600 }}>
+                                                    Verse {reciteShlokaIndex + 1} of {reciteParsedShlokas.length}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="shloka-text-card">
+                                            {shloka.lines.map((line, lIdx) => (
+                                                <div key={lIdx} className="shloka-line">
+                                                    {line.split(/(\s+|[।॥])/).map((token, tIdx) => {
+                                                        if (!token.trim()) return <span key={tIdx}> </span>;
+                                                        if (token === "।" || token === "॥") {
+                                                            return <span key={tIdx} className="shloka-punct">{token}</span>;
+                                                        }
+                                                        const meanings = getMeaningsForToken(token, currentReciteCol.names);
+                                                        const isMatched = meanings.length > 0;
+                                                        const isSelected = selectedShlokaWord?.token === token;
+                                                        return (
+                                                            <span
+                                                                key={tIdx}
+                                                                className={`shloka-word ${isMatched ? "matched" : ""} ${isSelected ? "selected" : ""}`}
+                                                                onClick={() => {
+                                                                    if (isMatched) {
+                                                                        triggerHaptic(18);
+                                                                        setSelectedShlokaWord({ token, meanings });
+                                                                    }
+                                                                }}
+                                                                title={isMatched ? "Tap to view divine name meaning" : undefined}
+                                                            >
+                                                                {token}
+                                                            </span>
+                                                        );
+                                                    })}
+                                                    {lIdx === shloka.lines.length - 1 && !line.includes("॥") && (
+                                                        <span className="shloka-punct"> ॥ {numberToDevanagari(shloka.shlokaNum)} ॥</span>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Navigation Controls */}
+                                        <div className="shloka-nav-bar">
+                                            <button
+                                                className="shloka-nav-btn"
+                                                disabled={reciteShlokaIndex === 0}
+                                                onClick={() => {
+                                                    setReciteShlokaIndex(i => Math.max(0, i - 1));
+                                                    setSelectedShlokaWord(null);
+                                                    triggerHaptic(12);
+                                                }}
+                                            >
+                                                ◀ Previous
+                                            </button>
+                                            <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-secondary)" }}>
+                                                {reciteShlokaIndex + 1} / {reciteParsedShlokas.length}
+                                            </div>
+                                            <button
+                                                className="shloka-nav-btn"
+                                                disabled={reciteShlokaIndex >= reciteParsedShlokas.length - 1}
+                                                onClick={() => {
+                                                    setReciteShlokaIndex(i => Math.min(reciteParsedShlokas.length - 1, i + 1));
+                                                    setSelectedShlokaWord(null);
+                                                    triggerHaptic(12);
+                                                }}
+                                            >
+                                                Next ▶
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* Full Continuous Stotra Reading View */
+                                    <div className="full-stotra-list">
+                                        {reciteParsedShlokas.map((sItem, sIdx) => (
+                                            <div key={sIdx} className="full-stotra-item">
+                                                <div className="full-stotra-num-badge">
+                                                    ॥ {numberToDevanagari(sItem.shlokaNum)} ॥
+                                                </div>
+                                                <div style={{ marginTop: "4px" }}>
+                                                    {sItem.lines.map((line, lIdx) => (
+                                                        <div key={lIdx} className="shloka-line" style={{ fontSize: "1.2rem", textAlign: "left", lineHeight: "1.8" }}>
+                                                            {line.split(/(\s+|[।॥])/).map((token, tIdx) => {
+                                                                if (!token.trim()) return <span key={tIdx}> </span>;
+                                                                if (token === "।" || token === "॥") {
+                                                                    return <span key={tIdx} className="shloka-punct">{token}</span>;
+                                                                }
+                                                                const meanings = getMeaningsForToken(token, currentReciteCol.names);
+                                                                const isMatched = meanings.length > 0;
+                                                                const isSelected = selectedShlokaWord?.token === token;
+                                                                return (
+                                                                    <span
+                                                                        key={tIdx}
+                                                                        className={`shloka-word ${isMatched ? "matched" : ""} ${isSelected ? "selected" : ""}`}
+                                                                        onClick={() => {
+                                                                            if (isMatched) {
+                                                                                triggerHaptic(18);
+                                                                                setSelectedShlokaWord({ token, meanings });
+                                                                            }
+                                                                        }}
+                                                                        title={isMatched ? "Tap to view divine name meaning" : undefined}
+                                                                    >
+                                                                        {token}
+                                                                    </span>
+                                                                );
+                                                            })}
+                                                            {lIdx === sItem.lines.length - 1 && !line.includes("॥") && (
+                                                                <span className="shloka-punct"> ॥ {numberToDevanagari(sItem.shlokaNum)} ॥</span>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Sticky Meaning Card (Pinned bottom popover) */}
+                                {selectedShlokaWord && (
+                                    <div className="sticky-meaning-card">
+                                        <div className="meaning-card-header">
+                                            <div className="meaning-card-title">
+                                                <span>🔱</span>
+                                                <span>{selectedShlokaWord.meanings.map(m => m.name).join(" • ")}</span>
+                                                {cleanSanskritWord(selectedShlokaWord.token) !== cleanSanskritWord(selectedShlokaWord.meanings[0]?.name) && (
+                                                    <span className="meaning-token-tag">({selectedShlokaWord.token})</span>
+                                                )}
+                                            </div>
+                                            <button className="meaning-card-close" onClick={() => setSelectedShlokaWord(null)}>✕</button>
+                                        </div>
+                                        <div className="meaning-card-body">
+                                            {selectedShlokaWord.meanings.map((m, idx) => (
+                                                <div key={idx} style={{ borderBottom: idx < selectedShlokaWord.meanings.length - 1 ? "1px dashed var(--border-light)" : "none", paddingBottom: "6px" }}>
+                                                    {m.meaningHi && (
+                                                        <div className="meaning-lang-row">
+                                                            <span className="meaning-lang-label">🇮🇳 हिन्दी:</span>
+                                                            <span>{m.meaningHi}</span>
+                                                        </div>
+                                                    )}
+                                                    {m.meaningEn && (
+                                                        <div className="meaning-lang-row" style={{ marginTop: "3px" }}>
+                                                            <span className="meaning-lang-label">🇬🇧 English:</span>
+                                                            <span>{m.meaningEn}</span>
+                                                        </div>
+                                                    )}
+                                                    {!m.meaningHi && !m.meaningEn && (
+                                                        <div className="meaning-lang-row" style={{ color: "var(--text-muted)" }}>
+                                                            Name recognized in Sahasranama (no meaning text entered).
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+                    );
+                })()}
+
+                {/* ========================================================
+                    TAB 3: KARMA YOGA (DEDICATED TWO-SCREEN ARCHITECTURE)
                    ======================================================== */}
                 {activeTab === "karma" && (
                     <section className="tab-pane active scrollable">
@@ -1990,14 +2934,26 @@ export default function App() {
                                                 <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" }}>
                                                     <button
                                                         className="btn btn-small"
-                                                        style={{ flex: 1 }}
+                                                        style={{ flex: 1, background: "linear-gradient(135deg, var(--gold), var(--saffron))", color: "#fff" }}
+                                                        onClick={() => {
+                                                            setReciteSelectedColId(col.id);
+                                                            setActiveTab("recite");
+                                                            setIsReciting(true);
+                                                            setReciteShlokaIndex(0);
+                                                            setSelectedShlokaWord(null);
+                                                        }}
+                                                    >
+                                                        📖 Recite Shlokas
+                                                    </button>
+                                                    <button
+                                                        className="btn btn-secondary btn-small"
                                                         onClick={() => {
                                                             setFsSelectedSource(`col:${col.id}`);
                                                             setActiveTab("nama");
                                                             setFsNameIndex(0);
                                                         }}
                                                     >
-                                                        📿 Chant Entire Stotra
+                                                        📿 Chant Stotra
                                                     </button>
                                                     <button
                                                         className="btn btn-secondary btn-small"
@@ -2790,14 +3746,46 @@ export default function App() {
                                             />
                                         </div>
 
+                                        <div className="input-group" style={{ marginBottom: "12px" }}>
+                                            <label style={{ display: "block", marginBottom: "6px", fontWeight: 700 }}>
+                                                Sync Strategy:
+                                            </label>
+                                            <div style={{ display: "flex", gap: "8px" }}>
+                                                <button
+                                                    type="button"
+                                                    className={`btn btn-small ${state.syncStrategy !== "overwrite" ? "btn-primary" : "btn-secondary"}`}
+                                                    style={{ flex: 1, textAlign: "left", padding: "6px 8px", fontSize: "0.75rem" }}
+                                                    onClick={() => setState(s => ({ ...s, syncStrategy: "merge" }))}
+                                                >
+                                                    <strong>🔀 Merge Data</strong>
+                                                    <div style={{ fontSize: "0.68rem", opacity: 0.85 }}>Combine local & cloud counts</div>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className={`btn btn-small ${state.syncStrategy === "overwrite" ? "btn-primary" : "btn-secondary"}`}
+                                                    style={{ flex: 1, textAlign: "left", padding: "6px 8px", fontSize: "0.75rem" }}
+                                                    onClick={() => setState(s => ({ ...s, syncStrategy: "overwrite" }))}
+                                                >
+                                                    <strong>⚠️ Overwrite</strong>
+                                                    <div style={{ fontSize: "0.68rem", opacity: 0.85 }}>Replace target data</div>
+                                                </button>
+                                            </div>
+                                        </div>
+
                                         <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
-                                            <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => pullFromCloud(state.syncKey)}>
-                                                ⬇️ Pull from Cloud
+                                            <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={handleDownSync}>
+                                                ⬇️ Down Sync (Pull)
                                             </button>
-                                            <button className="btn btn-small" style={{ flex: 1 }} onClick={() => syncToCloud(state, state.syncKey)}>
-                                                ⬆️ Push to Cloud
+                                            <button className="btn btn-small" style={{ flex: 1 }} onClick={handleUpSync}>
+                                                ⬆️ Up Sync (Push)
                                             </button>
                                         </div>
+
+                                        {syncFeedbackMsg && (
+                                            <div style={{ padding: "8px 10px", borderRadius: "var(--radius-sm)", background: "var(--bg-accent)", fontSize: "0.82rem", fontWeight: 600, color: "var(--saffron)", marginBottom: "12px" }}>
+                                                {syncFeedbackMsg}
+                                            </div>
+                                        )}
 
                                         <button className="btn" onClick={() => setSettingsActiveSection(null)}>
                                             ✓ Done
@@ -2960,6 +3948,13 @@ export default function App() {
                 >
                     <span className="dock-icon">📿</span>
                     <span>{t.navNama}</span>
+                </button>
+                <button
+                    className={`dock-item ${activeTab === "recite" ? "active" : ""}`}
+                    onClick={() => { setActiveTab("recite"); setIsReciting(false); }}
+                >
+                    <span className="dock-icon">📖</span>
+                    <span>{t.navRecite}</span>
                 </button>
                 <button
                     className={`dock-item ${activeTab === "karma" ? "active" : ""}`}
@@ -3152,6 +4147,39 @@ export default function App() {
                         </div>
 
                         <div className="input-group">
+                            <label>CSV Column Format:</label>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", cursor: "pointer" }}>
+                                    <input
+                                        type="radio"
+                                        name="csvFormat"
+                                        checked={csvFormatChoice === "auto"}
+                                        onChange={() => setCsvFormatChoice("auto")}
+                                    />
+                                    <span><strong>Option C: ⚡ Auto-Detect Headers</strong> (Name, Hindi, English, Shloka)</span>
+                                </label>
+                                <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", cursor: "pointer" }}>
+                                    <input
+                                        type="radio"
+                                        name="csvFormat"
+                                        checked={csvFormatChoice === "b"}
+                                        onChange={() => setCsvFormatChoice("b")}
+                                    />
+                                    <span><strong>Option B: 📋 4 Columns</strong> (Name, Hindi, English, Shloka Number)</span>
+                                </label>
+                                <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", cursor: "pointer" }}>
+                                    <input
+                                        type="radio"
+                                        name="csvFormat"
+                                        checked={csvFormatChoice === "legacy"}
+                                        onChange={() => setCsvFormatChoice("legacy")}
+                                    />
+                                    <span><strong>Legacy: 📄 3 Columns</strong> (Name, Hindi, English)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className="input-group">
                             <input type="file" accept=".csv,.md,.txt" onChange={handleFileUpload} />
                         </div>
 
@@ -3174,6 +4202,294 @@ export default function App() {
                         <button className="btn" onClick={parseAndImportContent}>
                             Import Names
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Cloudflare D1 Cloud Sync (Up Sync / Down Sync) */}
+            {showSyncModal && (
+                <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setShowSyncModal(false)}>
+                    <div className="modal-dialog" style={{ maxWidth: "480px" }}>
+                        <div className="modal-header">
+                            <div className="modal-title" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                <span>☁️</span> Cloudflare D1 Cloud Sync
+                            </div>
+                            <button className="modal-close-btn" onClick={() => setShowSyncModal(false)}>✕</button>
+                        </div>
+
+                        <div className="input-group">
+                            <label>Secret Cloud Sync Key:</label>
+                            <input
+                                type="text"
+                                value={state.syncKey}
+                                onChange={e => setState(s => ({ ...s, syncKey: e.target.value }))}
+                                placeholder="Enter sync key..."
+                            />
+                        </div>
+
+                        {/* Conflict Resolution Strategy */}
+                        <div className="input-group" style={{ marginBottom: "14px" }}>
+                            <label style={{ display: "block", marginBottom: "6px", fontWeight: 700 }}>
+                                Conflict Resolution Strategy:
+                            </label>
+                            <div style={{ display: "flex", gap: "8px" }}>
+                                <button
+                                    type="button"
+                                    className={`btn btn-small ${state.syncStrategy !== "overwrite" ? "btn-primary" : "btn-secondary"}`}
+                                    style={{ flex: 1, textAlign: "left", padding: "8px 10px", lineHeight: "1.3" }}
+                                    onClick={() => setState(s => ({ ...s, syncStrategy: "merge" }))}
+                                >
+                                    <strong>🔀 Merge Mode</strong>
+                                    <div style={{ fontSize: "0.72rem", opacity: 0.85 }}>
+                                        Combines local & cloud counts, collections & offerings (Recommended)
+                                    </div>
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`btn btn-small ${state.syncStrategy === "overwrite" ? "btn-primary" : "btn-secondary"}`}
+                                    style={{ flex: 1, textAlign: "left", padding: "8px 10px", lineHeight: "1.3" }}
+                                    onClick={() => setState(s => ({ ...s, syncStrategy: "overwrite" }))}
+                                >
+                                    <strong>⚠️ Overwrite Mode</strong>
+                                    <div style={{ fontSize: "0.72rem", opacity: 0.85 }}>
+                                        Replaces destination completely with source
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="sync-option-card">
+                            <div className="sync-card-title">
+                                <span>⬆️ Up Sync (Push to Cloud)</span>
+                            </div>
+                            <div className="sync-card-desc">
+                                {state.syncStrategy === "overwrite"
+                                    ? "Overwrites cloud data completely with this device's current local state."
+                                    : "Uploads and merges this device's local data (counts, custom Sahasranamas, offerings) with cloud data without erasing anything."}
+                            </div>
+                            <button className="btn btn-small" style={{ width: "100%" }} onClick={handleUpSync}>
+                                ⬆️ {state.syncStrategy === "overwrite" ? "Push & Overwrite Cloud" : "Push & Merge with Cloud"}
+                            </button>
+                        </div>
+
+                        <div className="sync-option-card">
+                            <div className="sync-card-title">
+                                <span>⬇️ Down Sync (Pull from Cloud)</span>
+                            </div>
+                            <div className="sync-card-desc">
+                                {state.syncStrategy === "overwrite"
+                                    ? "Downloads cloud data and replaces this device's current local state."
+                                    : "Downloads and merges saved cloud data into this device, preserving whichever counts and collections are higher or unique."}
+                            </div>
+                            <button className="btn btn-secondary btn-small" style={{ width: "100%" }} onClick={handleDownSync}>
+                                ⬇️ {state.syncStrategy === "overwrite" ? "Download & Overwrite Device" : "Download & Merge with Device"}
+                            </button>
+                        </div>
+
+                        {syncFeedbackMsg && (
+                            <div style={{ padding: "8px 10px", borderRadius: "var(--radius-sm)", background: "var(--bg-accent)", fontSize: "0.82rem", fontWeight: 600, color: "var(--saffron)", marginBottom: "12px", lineHeight: "1.4" }}>
+                                {syncFeedbackMsg}
+                            </div>
+                        )}
+
+                        <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => setShowSyncModal(false)}>
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Sahasranama Japa Auto-Play & Display Controls */}
+            {showNamaControlsModal && (
+                <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setShowNamaControlsModal(false)}>
+                    <div className="modal-dialog" style={{ maxWidth: "480px" }}>
+                        <div className="modal-header">
+                            <div className="modal-title" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                <span>🎛️</span> Sahasranama Japa & Display Controls
+                            </div>
+                            <button className="modal-close-btn" onClick={() => setShowNamaControlsModal(false)}>✕</button>
+                        </div>
+
+                        {/* Timing & Auto-Play Section */}
+                        <div className="controls-section-card">
+                            <div className="controls-section-title">
+                                <span>⏱️ Auto-Play & Timing</span>
+                                <button
+                                    className={`btn btn-small ${autoPlayActive ? "btn-secondary" : ""}`}
+                                    style={{ padding: "4px 12px", fontSize: "0.78rem" }}
+                                    onClick={() => setAutoPlayActive(p => !p)}
+                                >
+                                    {autoPlayActive ? "⏸ Pause Auto-Play" : "▶ Start Auto-Play"}
+                                </button>
+                            </div>
+
+                            <div className="input-group" style={{ marginTop: "10px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                                    <label style={{ margin: 0, fontWeight: 700 }}>Pace / Interval:</label>
+                                    <span style={{ fontWeight: 700, color: "var(--saffron)", fontSize: "0.9rem" }}>
+                                        {autoPlayInterval} second{autoPlayInterval > 1 ? "s" : ""}
+                                    </span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="1"
+                                    max="30"
+                                    step="1"
+                                    value={autoPlayInterval}
+                                    onChange={e => setAutoPlayInterval(Number(e.target.value))}
+                                    style={{ width: "100%", accentColor: "var(--saffron)" }}
+                                />
+                                <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
+                                    {[1, 2, 3, 5, 8, 10].map(sec => (
+                                        <button
+                                            key={sec}
+                                            type="button"
+                                            className={`btn-pill-choice ${autoPlayInterval === sec ? "active" : ""}`}
+                                            onClick={() => setAutoPlayInterval(sec)}
+                                        >
+                                            {sec}s
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="input-group" style={{ marginTop: "12px" }}>
+                                <label style={{ fontWeight: 700, marginBottom: "4px" }}>Stop Condition:</label>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                    <label className="checkbox-control-row">
+                                        <input
+                                            type="radio"
+                                            name="autoPlayStop"
+                                            checked={autoPlayStopCondition === "continuous"}
+                                            onChange={() => setAutoPlayStopCondition("continuous")}
+                                        />
+                                        <span><strong>♾️ Continuous Loop</strong> (Repeats names continuously)</span>
+                                    </label>
+                                    <label className="checkbox-control-row">
+                                        <input
+                                            type="radio"
+                                            name="autoPlayStop"
+                                            checked={autoPlayStopCondition === "mala"}
+                                            onChange={() => setAutoPlayStopCondition("mala")}
+                                        />
+                                        <span><strong>📿 Stop after 108 Beads (1 Mala)</strong> (Completes one full round)</span>
+                                    </label>
+                                    <label className="checkbox-control-row">
+                                        <input
+                                            type="radio"
+                                            name="autoPlayStop"
+                                            checked={autoPlayStopCondition === "collection"}
+                                            onChange={() => setAutoPlayStopCondition("collection")}
+                                        />
+                                        <span><strong>📖 Stop at End of Collection</strong> (Stops after final name)</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px dashed var(--border)" }}>
+                                <label className="checkbox-control-row">
+                                    <input
+                                        type="checkbox"
+                                        checked={autoPlayCountBeads}
+                                        onChange={e => setAutoPlayCountBeads(e.target.checked)}
+                                    />
+                                    <span><strong>Count Beads & Total Japa</strong> on each auto-advance</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* Display Controls Section */}
+                        <div className="controls-section-card" style={{ marginTop: "12px" }}>
+                            <div className="controls-section-title">
+                                <span>👁️ Display & Visuals</span>
+                            </div>
+
+                            <div className="input-group" style={{ marginTop: "10px" }}>
+                                <label style={{ fontWeight: 700, marginBottom: "6px" }}>Divine Name Font Size:</label>
+                                <div style={{ display: "flex", gap: "8px" }}>
+                                    {[
+                                        { key: "sm", label: "Small (A-)" },
+                                        { key: "md", label: "Medium (A)" },
+                                        { key: "lg", label: "Large (A+)" },
+                                        { key: "xl", label: "Extra Large (A++)" }
+                                    ].map(item => (
+                                        <button
+                                            key={item.key}
+                                            type="button"
+                                            className={`btn btn-small ${namaFontSize === item.key ? "btn-primary" : "btn-secondary"}`}
+                                            style={{ flex: 1, padding: "6px 4px", fontSize: "0.75rem", fontWeight: 700 }}
+                                            onClick={() => setNamaFontSize(item.key)}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="input-group" style={{ marginTop: "12px" }}>
+                                <label style={{ fontWeight: 700, marginBottom: "6px" }}>Visibility Controls:</label>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                    <label className="checkbox-control-row">
+                                        <input
+                                            type="checkbox"
+                                            checked={fsShowMeaning}
+                                            onChange={e => setFsShowMeaning(e.target.checked)}
+                                        />
+                                        <span>Show Meaning Box (Master switch)</span>
+                                    </label>
+                                    {fsShowMeaning && (
+                                        <div style={{ paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                                            <label className="checkbox-control-row">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={namaDisplayOptions.showMeaningHi}
+                                                    onChange={e => setNamaDisplayOptions(o => ({ ...o, showMeaningHi: e.target.checked }))}
+                                                />
+                                                <span>Hindi Meaning (हिंदी अर्थ)</span>
+                                            </label>
+                                            <label className="checkbox-control-row">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={namaDisplayOptions.showMeaningEn}
+                                                    onChange={e => setNamaDisplayOptions(o => ({ ...o, showMeaningEn: e.target.checked }))}
+                                                />
+                                                <span>English Meaning</span>
+                                            </label>
+                                        </div>
+                                    )}
+                                    <label className="checkbox-control-row">
+                                        <input
+                                            type="checkbox"
+                                            checked={namaDisplayOptions.showMeta}
+                                            onChange={e => setNamaDisplayOptions(o => ({ ...o, showMeta: e.target.checked }))}
+                                        />
+                                        <span>Deity & Collection Name / Counter</span>
+                                    </label>
+                                    <label className="checkbox-control-row">
+                                        <input
+                                            type="checkbox"
+                                            checked={namaDisplayOptions.showBeads}
+                                            onChange={e => setNamaDisplayOptions(o => ({ ...o, showBeads: e.target.checked }))}
+                                        />
+                                        <span>108 Bead Badge & Mala Counters</span>
+                                    </label>
+                                    <label className="checkbox-control-row">
+                                        <input
+                                            type="checkbox"
+                                            checked={namaDisplayOptions.showPrompt}
+                                            onChange={e => setNamaDisplayOptions(o => ({ ...o, showPrompt: e.target.checked }))}
+                                        />
+                                        <span>Tap-to-advance Helper Prompt</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ marginTop: "14px" }}>
+                            <button className="btn" style={{ width: "100%" }} onClick={() => setShowNamaControlsModal(false)}>
+                                ✓ Done
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
