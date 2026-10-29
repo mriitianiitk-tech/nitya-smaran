@@ -44,15 +44,17 @@ export async function onRequestPost(context) {
             return Response.json({ error: "Invalid payload" }, { status: 400 });
         }
 
-        if (env.DB) {
-            await env.DB.prepare(`
-                INSERT INTO smaran_sync (user_id, state_json, updated_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(user_id) DO UPDATE SET
-                  state_json = excluded.state_json,
-                  updated_at = excluded.updated_at
-            `).bind(syncKey, JSON.stringify(state), Date.now()).run();
+        if (!env.DB) {
+            return Response.json({ ok: false, message: "D1 not bound" }, { status: 500 });
         }
+
+        await env.DB.prepare(`
+            INSERT INTO smaran_sync (user_id, state_json, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+              state_json = excluded.state_json,
+              updated_at = excluded.updated_at
+        `).bind(syncKey, JSON.stringify(state), Date.now()).run();
 
         return Response.json({ ok: true, timestamp: Date.now() });
     } catch (err) {

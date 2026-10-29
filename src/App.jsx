@@ -74,7 +74,6 @@ const INITIAL_SAHASRANAMAS = [
 
 const DEFAULT_STATE = {
     syncKey: "sagar-nitya-smaran-108",
-    syncStrategy: "merge", // 'merge' | 'overwrite'
     deityName: "🙏 श्री सीताराम (Sri Sita-Ram)",
     mantra: "श्री राम जय राम जय जय राम",
     arpanamWord: "श्री सीतारामार्पणमस्तु",
@@ -139,86 +138,6 @@ export function normalizeSanskritStem(w) {
     s = s.replace(/[ःर्स्श्ष्]$/g, "");
     s = s.replace(/ो$/g, "");
     return s;
-}
-
-// Merge helper for Cloudflare D1 Cloud Sync: Combines local & cloud states without data loss
-export function mergeSyncStates(local, cloud) {
-    if (!cloud) return local;
-
-    // Merge Sahasranama collections by id
-    const localCols = Array.isArray(local.sahasranamas) ? local.sahasranamas : [];
-    const cloudCols = Array.isArray(cloud.sahasranamas) ? cloud.sahasranamas : [];
-    const colMap = new Map();
-
-    localCols.forEach(col => colMap.set(col.id, { ...col }));
-
-    cloudCols.forEach(cloudCol => {
-        if (!colMap.has(cloudCol.id)) {
-            colMap.set(cloudCol.id, cloudCol);
-        } else {
-            const localCol = colMap.get(cloudCol.id);
-            const mergedNames = [...(localCol.names || [])];
-            const existingNameStems = new Set(mergedNames.map(n => cleanSanskritWord(n.name)));
-            (cloudCol.names || []).forEach(cn => {
-                if (!existingNameStems.has(cleanSanskritWord(cn.name))) {
-                    mergedNames.push(cn);
-                }
-            });
-            colMap.set(cloudCol.id, {
-                ...localCol,
-                ...cloudCol,
-                title: cloudCol.title || localCol.title,
-                deity: cloudCol.deity || localCol.deity,
-                rawStotraText: (cloudCol.rawStotraText?.length || 0) > (localCol.rawStotraText?.length || 0)
-                    ? cloudCol.rawStotraText
-                    : localCol.rawStotraText,
-                names: mergedNames
-            });
-        }
-    });
-
-    // Merge karmas (deduplicate by id or date+action)
-    const localKarmas = Array.isArray(local.karmas) ? local.karmas : [];
-    const cloudKarmas = Array.isArray(cloud.karmas) ? cloud.karmas : [];
-    const karmaMap = new Map();
-    localKarmas.forEach(k => karmaMap.set(k.id || `${k.date}-${k.action}`, k));
-    cloudKarmas.forEach(k => {
-        const key = k.id || `${k.date}-${k.action}`;
-        if (!karmaMap.has(key)) {
-            karmaMap.set(key, k);
-        }
-    });
-
-    // Merge favoriteKeys
-    const localFavs = Array.isArray(local.favoriteKeys) ? local.favoriteKeys : [];
-    const cloudFavs = Array.isArray(cloud.favoriteKeys) ? cloud.favoriteKeys : [];
-    const mergedFavs = Array.from(new Set([...localFavs, ...cloudFavs]));
-
-    // Merge deities
-    const localDeities = Array.isArray(local.deities) ? local.deities : [];
-    const cloudDeities = Array.isArray(cloud.deities) ? cloud.deities : [];
-    const mergedDeities = Array.from(new Set([...localDeities, ...cloudDeities]));
-
-    // Merge bhava options
-    const localBhavas = Array.isArray(local.bhavaOptions) ? local.bhavaOptions : [];
-    const cloudBhavas = Array.isArray(cloud.bhavaOptions) ? cloud.bhavaOptions : [];
-    const mergedBhavas = Array.from(new Set([...localBhavas, ...cloudBhavas]));
-
-    // Japa totals: take higher value to ensure no beads are lost
-    const maxTotalJapa = Math.max(Number(local.totalJapa) || 0, Number(cloud.totalJapa) || 0);
-    const maxTodayMalas = Math.max(Number(local.todayMalas) || 0, Number(cloud.todayMalas) || 0);
-
-    return {
-        ...cloud,
-        ...local,
-        totalJapa: maxTotalJapa,
-        todayMalas: maxTodayMalas,
-        sahasranamas: Array.from(colMap.values()),
-        karmas: Array.from(karmaMap.values()),
-        favoriteKeys: mergedFavs,
-        deities: mergedDeities.length > 0 ? mergedDeities : local.deities,
-        bhavaOptions: mergedBhavas.length > 0 ? mergedBhavas : local.bhavaOptions
-    };
 }
 
 export function getMeaningsForToken(token, namesList) {
@@ -394,7 +313,6 @@ export default function App() {
                 return {
                     ...DEFAULT_STATE,
                     ...parsed,
-                    syncStrategy: parsed.syncStrategy || "merge",
                     bhavaOptions: Array.isArray(parsed.bhavaOptions) && parsed.bhavaOptions.length > 0 ? parsed.bhavaOptions : DEFAULT_BHAVA_OPTIONS,
                     sahasranamas: Array.isArray(parsed.sahasranamas) ? parsed.sahasranamas : INITIAL_SAHASRANAMAS,
                     deities: Array.isArray(parsed.deities) && parsed.deities.length > 0 ? parsed.deities : PRESET_DEITIES,
@@ -683,49 +601,37 @@ export default function App() {
         document.documentElement.setAttribute("data-theme", state.theme);
     }, [state]);
 
-    // Cloudflare D1 Cloud Sync: Explicit Up Sync & Down Sync Handlers with Merge & Overwrite options
+    // Cloudflare D1 Cloud Sync Handlers (Triggered ONLY when user explicitly clicks Up/Down Sync)
+    // 1. Up Sync: Device to Cloud
     const handleUpSync = async () => {
         if (!navigator.onLine) {
             setSyncFeedbackMsg("⚠️ Offline. Please check your internet connection.");
             return;
         }
-        if (!state.syncKey) {
+        const activeKey = (state.syncKey || "").trim();
+        if (!activeKey) {
             setSyncFeedbackMsg("⚠️ Please enter a Sync Key first.");
             setShowSyncModal(true);
             return;
         }
         try {
             setSyncStatus("Syncing...");
-            setSyncFeedbackMsg("Uploading local data to Cloudflare D1...");
-            
-            let stateToUpload = state;
-            if (state.syncStrategy === "merge") {
-                try {
-                    const getRes = await fetch(`/api/sync?key=${encodeURIComponent(state.syncKey)}`);
-                    if (getRes.ok) {
-                        const cloudData = await getRes.json();
-                        if (cloudData.state) {
-                            stateToUpload = mergeSyncStates(state, cloudData.state);
-                            setState(stateToUpload);
-                        }
-                    }
-                } catch (mergeErr) {
-                    console.warn("Merge pre-fetch failed, pushing local state directly:", mergeErr);
-                }
-            }
+            setSyncFeedbackMsg("Uploading device data to Cloudflare D1...");
 
             const res = await fetch("/api/sync", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    syncKey: state.syncKey,
-                    state: stateToUpload,
-                    karmas: stateToUpload.karmas
+                    syncKey: activeKey,
+                    state: state
                 })
             });
-            if (!res.ok) throw new Error("Push failed");
+            const data = await res.json();
+            if (!res.ok || data.ok === false) {
+                throw new Error(data.message || data.error || "Upload failed");
+            }
             setSyncStatus("☁️ Synced");
-            setSyncFeedbackMsg(`✓ Up Sync successful! Data saved to cloud (${state.syncStrategy === "overwrite" ? "Overwritten" : "Merged"}) at ${new Date().toLocaleTimeString()}`);
+            setSyncFeedbackMsg(`✓ Up Sync successful! Device data uploaded to cloud at ${new Date().toLocaleTimeString()}`);
             triggerHaptic(20);
         } catch (err) {
             setSyncStatus("Local Mode");
@@ -733,49 +639,46 @@ export default function App() {
         }
     };
 
+    // 2. Down Sync: Cloud to Device
     const handleDownSync = async () => {
         if (!navigator.onLine) {
             setSyncFeedbackMsg("⚠️ Offline. Please check your internet connection.");
             return;
         }
-        if (!state.syncKey) {
+        const activeKey = (state.syncKey || "").trim();
+        if (!activeKey) {
             setSyncFeedbackMsg("⚠️ Please enter a Sync Key first.");
             setShowSyncModal(true);
             return;
         }
-        const isOverwrite = state.syncStrategy === "overwrite";
-        if (isOverwrite) {
-            const confirmPull = window.confirm("⚠️ Overwrite Mode: Down Sync will download cloud data and replace this device's current local data. Do you want to proceed?");
-            if (!confirmPull) return;
-        }
+        const confirmPull = window.confirm("⬇️ Down Sync: Download saved cloud data and load it onto this device? This will update your local data with what is in the cloud.");
+        if (!confirmPull) return;
 
         try {
             setSyncStatus("Syncing...");
-            setSyncFeedbackMsg("Fetching latest cloud data...");
-            const res = await fetch(`/api/sync?key=${encodeURIComponent(state.syncKey)}`);
-            if (!res.ok) throw new Error("Pull failed");
+            setSyncFeedbackMsg("Downloading data from Cloudflare D1...");
+            const res = await fetch(`/api/sync?key=${encodeURIComponent(activeKey)}`);
+            if (!res.ok) throw new Error("Download failed");
             const data = await res.json();
+            if (data.ok === false) {
+                throw new Error(data.message || data.error || "Cloud fetch error");
+            }
             if (data.state) {
                 const cloudState = data.state;
-                if (isOverwrite) {
-                    setState(prev => ({
-                        ...prev,
-                        ...cloudState,
-                        syncStrategy: prev.syncStrategy || "overwrite",
-                        bhavaOptions: Array.isArray(cloudState.bhavaOptions) && cloudState.bhavaOptions.length > 0 ? cloudState.bhavaOptions : prev.bhavaOptions,
-                        sahasranamas: Array.isArray(cloudState.sahasranamas) ? cloudState.sahasranamas : prev.sahasranamas,
-                        deities: Array.isArray(cloudState.deities) && cloudState.deities.length > 0 ? cloudState.deities : prev.deities,
-                        favoriteKeys: Array.isArray(cloudState.favoriteKeys) ? cloudState.favoriteKeys : (prev.favoriteKeys || [])
-                    }));
-                    setSyncFeedbackMsg(`✓ Down Sync complete! Replaced local data with cloud data at ${new Date().toLocaleTimeString()}`);
-                } else {
-                    setState(prev => mergeSyncStates(prev, cloudState));
-                    setSyncFeedbackMsg(`✓ Down Sync complete! Merged cloud + local data at ${new Date().toLocaleTimeString()}`);
-                }
+                setState(prev => ({
+                    ...prev,
+                    ...cloudState,
+                    syncKey: activeKey,
+                    bhavaOptions: Array.isArray(cloudState.bhavaOptions) && cloudState.bhavaOptions.length > 0 ? cloudState.bhavaOptions : prev.bhavaOptions,
+                    sahasranamas: Array.isArray(cloudState.sahasranamas) ? cloudState.sahasranamas : prev.sahasranamas,
+                    deities: Array.isArray(cloudState.deities) && cloudState.deities.length > 0 ? cloudState.deities : prev.deities,
+                    favoriteKeys: Array.isArray(cloudState.favoriteKeys) ? cloudState.favoriteKeys : (prev.favoriteKeys || [])
+                }));
                 setSyncStatus("☁️ Synced");
+                setSyncFeedbackMsg(`✓ Down Sync successful! Cloud data loaded onto this device at ${new Date().toLocaleTimeString()}`);
                 triggerHaptic(20);
             } else {
-                setSyncFeedbackMsg("⚠️ No saved state found on cloud for this Sync Key.");
+                setSyncFeedbackMsg("⚠️ No saved data found in cloud for this Sync Key. Click 'Up Sync' first on the device you want to save from.");
                 setSyncStatus("Offline-Ready");
             }
         } catch (err) {
@@ -3746,38 +3649,12 @@ export default function App() {
                                             />
                                         </div>
 
-                                        <div className="input-group" style={{ marginBottom: "12px" }}>
-                                            <label style={{ display: "block", marginBottom: "6px", fontWeight: 700 }}>
-                                                Sync Strategy:
-                                            </label>
-                                            <div style={{ display: "flex", gap: "8px" }}>
-                                                <button
-                                                    type="button"
-                                                    className={`btn btn-small ${state.syncStrategy !== "overwrite" ? "btn-primary" : "btn-secondary"}`}
-                                                    style={{ flex: 1, textAlign: "left", padding: "6px 8px", fontSize: "0.75rem" }}
-                                                    onClick={() => setState(s => ({ ...s, syncStrategy: "merge" }))}
-                                                >
-                                                    <strong>🔀 Merge Data</strong>
-                                                    <div style={{ fontSize: "0.68rem", opacity: 0.85 }}>Combine local & cloud counts</div>
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className={`btn btn-small ${state.syncStrategy === "overwrite" ? "btn-primary" : "btn-secondary"}`}
-                                                    style={{ flex: 1, textAlign: "left", padding: "6px 8px", fontSize: "0.75rem" }}
-                                                    onClick={() => setState(s => ({ ...s, syncStrategy: "overwrite" }))}
-                                                >
-                                                    <strong>⚠️ Overwrite</strong>
-                                                    <div style={{ fontSize: "0.68rem", opacity: 0.85 }}>Replace target data</div>
-                                                </button>
-                                            </div>
-                                        </div>
-
                                         <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
-                                            <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={handleDownSync}>
-                                                ⬇️ Down Sync (Pull)
-                                            </button>
                                             <button className="btn btn-small" style={{ flex: 1 }} onClick={handleUpSync}>
-                                                ⬆️ Up Sync (Push)
+                                                ⬆️ Up Sync (Device ➔ Cloud)
+                                            </button>
+                                            <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={handleDownSync}>
+                                                ⬇️ Down Sync (Cloud ➔ Device)
                                             </button>
                                         </div>
 
@@ -4227,63 +4104,32 @@ export default function App() {
                             />
                         </div>
 
-                        {/* Conflict Resolution Strategy */}
-                        <div className="input-group" style={{ marginBottom: "14px" }}>
-                            <label style={{ display: "block", marginBottom: "6px", fontWeight: 700 }}>
-                                Conflict Resolution Strategy:
-                            </label>
-                            <div style={{ display: "flex", gap: "8px" }}>
-                                <button
-                                    type="button"
-                                    className={`btn btn-small ${state.syncStrategy !== "overwrite" ? "btn-primary" : "btn-secondary"}`}
-                                    style={{ flex: 1, textAlign: "left", padding: "8px 10px", lineHeight: "1.3" }}
-                                    onClick={() => setState(s => ({ ...s, syncStrategy: "merge" }))}
-                                >
-                                    <strong>🔀 Merge Mode</strong>
-                                    <div style={{ fontSize: "0.72rem", opacity: 0.85 }}>
-                                        Combines local & cloud counts, collections & offerings (Recommended)
-                                    </div>
-                                </button>
-                                <button
-                                    type="button"
-                                    className={`btn btn-small ${state.syncStrategy === "overwrite" ? "btn-primary" : "btn-secondary"}`}
-                                    style={{ flex: 1, textAlign: "left", padding: "8px 10px", lineHeight: "1.3" }}
-                                    onClick={() => setState(s => ({ ...s, syncStrategy: "overwrite" }))}
-                                >
-                                    <strong>⚠️ Overwrite Mode</strong>
-                                    <div style={{ fontSize: "0.72rem", opacity: 0.85 }}>
-                                        Replaces destination completely with source
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
-
                         <div className="sync-option-card">
                             <div className="sync-card-title">
-                                <span>⬆️ Up Sync (Push to Cloud)</span>
+                                <span>⬆️ Up Sync (Device ➔ Cloud)</span>
                             </div>
                             <div className="sync-card-desc">
-                                {state.syncStrategy === "overwrite"
-                                    ? "Overwrites cloud data completely with this device's current local state."
-                                    : "Uploads and merges this device's local data (counts, custom Sahasranamas, offerings) with cloud data without erasing anything."}
+                                Upload all current data from this device (Japa totals, 108 bead position, malas, custom Sahasranamas, and offerings) to Cloudflare D1 cloud.
                             </div>
                             <button className="btn btn-small" style={{ width: "100%" }} onClick={handleUpSync}>
-                                ⬆️ {state.syncStrategy === "overwrite" ? "Push & Overwrite Cloud" : "Push & Merge with Cloud"}
+                                ⬆️ Up Sync: Push Device to Cloud
                             </button>
                         </div>
 
                         <div className="sync-option-card">
                             <div className="sync-card-title">
-                                <span>⬇️ Down Sync (Pull from Cloud)</span>
+                                <span>⬇️ Down Sync (Cloud ➔ Device)</span>
                             </div>
                             <div className="sync-card-desc">
-                                {state.syncStrategy === "overwrite"
-                                    ? "Downloads cloud data and replaces this device's current local state."
-                                    : "Downloads and merges saved cloud data into this device, preserving whichever counts and collections are higher or unique."}
+                                Download saved cloud data from Cloudflare D1 and load it onto this device.
                             </div>
                             <button className="btn btn-secondary btn-small" style={{ width: "100%" }} onClick={handleDownSync}>
-                                ⬇️ {state.syncStrategy === "overwrite" ? "Download & Overwrite Device" : "Download & Merge with Device"}
+                                ⬇️ Down Sync: Pull Cloud to Device
                             </button>
+                        </div>
+
+                        <div style={{ fontSize: "0.76rem", color: "var(--text-muted)", marginBottom: "12px", textAlign: "center" }}>
+                            🔒 Sync happens <strong>only when you click the buttons above</strong>. No background sync occurs.
                         </div>
 
                         {syncFeedbackMsg && (
